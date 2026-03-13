@@ -4,10 +4,10 @@ use tower_http::{set_header::SetResponseHeaderLayer, trace::TraceLayer};
 use crate::{AppState, handlers};
 
 pub fn router(state: AppState) -> Router {
-    let public = Router::new().merge(handlers::health::router());
+    let routes = Router::new().merge(handlers::health::router());
 
     Router::new()
-        .nest("/api/v1", Router::new().merge(public))
+        .nest("/api/v1", Router::new().merge(routes))
         // Tracing
         .layer(TraceLayer::new_for_http())
         // Body limit (1 MB)

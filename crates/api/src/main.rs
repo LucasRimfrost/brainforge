@@ -4,6 +4,7 @@ use sqlx::PgPool;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod handlers;
+mod middleware;
 mod routes;
 
 #[allow(dead_code)]
