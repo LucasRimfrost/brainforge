@@ -1,9 +1,11 @@
+use auth::jwt::Claims;
 use axum::extract::FromRequestParts;
 use axum_extra::extract::CookieJar;
 use jsonwebtoken::{DecodingKey, Validation, decode};
+use shared::error::AppError;
 use uuid::Uuid;
 
-use crate::{AppState, auth::jwt::Claims, error::AppError};
+use crate::AppState;
 
 pub struct AuthUser {
     pub id: Uuid,
