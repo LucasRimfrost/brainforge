@@ -6,7 +6,8 @@ use crate::{AppState, handlers};
 pub fn router(state: AppState) -> Router {
     let routes = Router::new()
         .merge(handlers::health::router())
-        .nest("/auth", handlers::auth::router());
+        .nest("/auth", handlers::auth::router())
+        .nest("/challenge", handlers::challenge::router());
 
     Router::new()
         .nest("/api/v1", Router::new().merge(routes))

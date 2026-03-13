@@ -12,6 +12,7 @@ auth.workspace = true
 # External crates
 axum.workspace = true
 axum-extra.workspace = true
+chrono.workspace = true
 dotenvy.workspace = true
 jsonwebtoken.workspace = true
 serde.workspace = true
