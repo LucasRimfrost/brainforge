@@ -5,6 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { getToday, submitAnswer } from "@/api/challenge";
+import { getChallengeByDate, getToday, submitAnswer } from "@/api/challenge";
 import { ApiRequestError } from "@/api/client";
 import type { Challenge, SubmitResponse } from "@/api/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -62,6 +63,7 @@ function generateShareText(challenge: Challenge): string {
 }
 
 export function ChallengePage() {
+  const { date } = useParams<{ date?: string }>();
   const { user, refresh } = useAuth();
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,23 +80,33 @@ export function ChallengePage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchChallenge = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    setChallenge(null);
+    setLastResult(null);
+    setHint(null);
+    setHintVisible(false);
+    setAnswer("");
     try {
-      const data = await getToday();
+      const data = date ? await getChallengeByDate(date) : await getToday();
       setChallenge(data);
-      // Only reveal hint if user has made 3+ attempts
       if (data.attempts_used >= 3) {
         setHint(data.hint);
       }
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 404) {
-        setLoadError("No challenge available today. Check back tomorrow!");
+        setLoadError(
+          date
+            ? "Challenge not found for this date."
+            : "No challenge available today. Check back tomorrow!",
+        );
       } else {
-        setLoadError("Failed to load today's challenge.");
+        setLoadError("Failed to load challenge.");
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [date]);
 
   useEffect(() => {
     fetchChallenge();
@@ -124,7 +136,10 @@ export function ChallengePage() {
     setSubmitError("");
 
     try {
-      const result = await submitAnswer({ answer: answer.trim() });
+      const result = await submitAnswer({
+        answer: answer.trim(),
+        challenge_id: challenge.id,
+      });
       setLastResult(result);
       setAnswer("");
 

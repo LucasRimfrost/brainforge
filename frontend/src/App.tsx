@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { ChallengePage } from "@/pages/ChallengePage";
+import { ArchivePage } from "@/pages/ArchivePage";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { LeaderboardPage } from "@/pages/LeaderboardPage";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +32,8 @@ function App() {
           {/* Protected */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<ChallengePage />} />
+            <Route path="/challenge/:date" element={<ChallengePage />} />
+            <Route path="/archive" element={<ArchivePage />} />
             <Route path="/history" element={<HistoryPage />} />
           </Route>
 

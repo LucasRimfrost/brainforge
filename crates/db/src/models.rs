@@ -14,6 +14,7 @@ pub struct User {
 
 #[derive(Debug, sqlx::Type, Serialize, Deserialize)]
 #[sqlx(type_name = "text", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum Difficulty {
     Easy,
     Medium,

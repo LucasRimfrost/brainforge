@@ -45,6 +45,17 @@ export interface Challenge {
 
 export interface SubmitRequest {
   answer: string;
+  challenge_id?: string;
+}
+
+export interface ArchiveEntry {
+  id: string;
+  title: string;
+  difficulty: "easy" | "medium" | "hard";
+  scheduled_date: string;
+  is_solved: boolean;
+  attempts_used: number;
+  max_attempts: number;
 }
 
 export interface SubmitResponse {

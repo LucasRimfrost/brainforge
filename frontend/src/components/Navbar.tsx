@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Flame, LogOut, Moon, Sun, Trophy, History, Zap } from "lucide-react";
+import { Archive, Flame, LogOut, Moon, Sun, Trophy, History, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -59,10 +59,16 @@ export function Navbar() {
               <span className="hidden sm:inline">Leaderboard</span>
             </NavLink>
             {user && (
-              <NavLink to="/history">
-                <History className="size-4" />
-                <span className="hidden sm:inline">History</span>
-              </NavLink>
+              <>
+                <NavLink to="/archive">
+                  <Archive className="size-4" />
+                  <span className="hidden sm:inline">Archive</span>
+                </NavLink>
+                <NavLink to="/history">
+                  <History className="size-4" />
+                  <span className="hidden sm:inline">History</span>
+                </NavLink>
+              </>
             )}
           </nav>
         </div>
