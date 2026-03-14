@@ -52,19 +52,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(async (data: LoginRequest) => {
-    const user = await authApi.login(data);
-    setState({
-      user: { ...user, stats: { current_streak: 0, longest_streak: 0, total_solved: 0, total_attempts: 0 } },
-      loading: false,
-    });
+    await authApi.login(data);
+    const fullUser = await authApi.getMe();
+    setState({ user: fullUser, loading: false });
   }, []);
 
   const register = useCallback(async (data: RegisterRequest) => {
-    const user = await authApi.register(data);
-    setState({
-      user: { ...user, stats: { current_streak: 0, longest_streak: 0, total_solved: 0, total_attempts: 0 } },
-      loading: false,
-    });
+    await authApi.register(data);
+    const fullUser = await authApi.getMe();
+    setState({ user: fullUser, loading: false });
   }, []);
 
   const logout = useCallback(async () => {
