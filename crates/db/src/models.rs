@@ -54,3 +54,21 @@ pub struct Submission {
     pub attempt_number: i32,
     pub submitted_at: DateTime<Utc>,
 }
+
+#[derive(Debug, FromRow, Serialize)]
+pub struct UserStats {
+    pub user_id: Uuid,
+    pub current_streak: i32,
+    pub longest_streak: i32,
+    pub total_solved: i32,
+    pub total_attempts: i32,
+    pub last_solved_date: Option<chrono::NaiveDate>,
+}
+
+#[derive(Debug, FromRow, Serialize)]
+pub struct LeaderboardRow {
+    pub username: String,
+    pub current_streak: i32,
+    pub longest_streak: i32,
+    pub total_solved: i32,
+}

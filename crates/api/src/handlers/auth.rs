@@ -5,6 +5,7 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
+use db::queries::find_user_stats;
 use serde::{Deserialize, Serialize};
 use shared::error::{AppError, AppResult};
 use validator::Validate;
@@ -44,6 +45,22 @@ pub struct AuthResponse {
     pub id: String,
     pub username: String,
     pub email: String,
+}
+
+#[derive(Serialize)]
+pub struct MeResponse {
+    pub id: String,
+    pub username: String,
+    pub email: String,
+    pub stats: StatsResponse,
+}
+
+#[derive(Serialize, Default)]
+pub struct StatsResponse {
+    pub current_streak: i32,
+    pub longest_streak: i32,
+    pub total_solved: i32,
+    pub total_attempts: i32,
 }
 
 // ── Router ────────────────────────────────────────────────────────────────
@@ -147,12 +164,23 @@ pub async fn me(
 
     tracing::debug!("Fetched profile for user: {}", auth_user.id);
 
+    let stats = match find_user_stats(&state.pool, auth_user.id).await? {
+        Some(s) => StatsResponse {
+            current_streak: s.current_streak,
+            longest_streak: s.longest_streak,
+            total_solved: s.total_solved,
+            total_attempts: s.total_attempts,
+        },
+        None => StatsResponse::default(),
+    };
+
     Ok((
         StatusCode::OK,
-        Json(AuthResponse {
+        Json(MeResponse {
             id: user.id.to_string(),
             username: user.username,
             email: user.email,
+            stats,
         }),
     ))
 }

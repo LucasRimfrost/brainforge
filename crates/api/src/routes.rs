@@ -7,7 +7,8 @@ pub fn router(state: AppState) -> Router {
     let routes = Router::new()
         .merge(handlers::health::router())
         .nest("/auth", handlers::auth::router())
-        .nest("/challenge", handlers::challenge::router());
+        .nest("/challenge", handlers::challenge::router())
+        .nest("/leaderboard", handlers::leaderboard::router());
 
     Router::new()
         .nest("/api/v1", Router::new().merge(routes))

@@ -2,7 +2,9 @@ use shared::error::{AppError, AppResult};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::models::{Challenge, ChallengeHistory, Difficulty, Submission, User};
+use crate::models::{
+    Challenge, ChallengeHistory, Difficulty, LeaderboardRow, Submission, User, UserStats,
+};
 
 pub async fn create_user(
     pool: &PgPool,
@@ -152,6 +154,95 @@ pub async fn find_user_challenge_history(
         limit
     )
     .fetch_all(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+pub async fn upsert_user_stats_on_solve(
+    pool: &PgPool,
+    user_id: Uuid,
+    solved_date: chrono::NaiveDate,
+) -> AppResult<()> {
+    sqlx::query!(
+        r#"
+        INSERT INTO user_stats (user_id, current_streak, longest_streak, total_solved, last_solved_date)
+        VALUES ($1, 1, 1, 1, $2)
+        ON CONFLICT (user_id) DO UPDATE SET
+            current_streak = CASE
+                WHEN user_stats.last_solved_date = $2 THEN user_stats.current_streak
+                WHEN user_stats.last_solved_date = $2 - 1 THEN user_stats.current_streak + 1
+                ELSE 1
+            END,
+            longest_streak = GREATEST(
+                user_stats.longest_streak,
+                CASE
+                    WHEN user_stats.last_solved_date = $2 THEN user_stats.current_streak
+                    WHEN user_stats.last_solved_date = $2 - 1 THEN user_stats.current_streak + 1
+                    ELSE 1
+                END
+            ),
+            total_solved = CASE
+                WHEN user_stats.last_solved_date = $2 THEN user_stats.total_solved
+                ELSE user_stats.total_solved + 1
+            END,
+            last_solved_date = $2
+        "#,
+        user_id,
+        solved_date,
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    Ok(())
+}
+
+pub async fn increment_total_attempts(pool: &PgPool, user_id: Uuid) -> AppResult<()> {
+    sqlx::query!(
+        r#"
+        INSERT INTO user_stats (user_id, total_attempts)
+        VALUES ($1, 1)
+        ON CONFLICT (user_id) DO UPDATE SET
+            total_attempts = user_stats.total_attempts + 1
+        "#,
+        user_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    Ok(())
+}
+
+pub async fn find_leaderboard(pool: &PgPool, limit: i64) -> AppResult<Vec<LeaderboardRow>> {
+    sqlx::query_as!(
+        LeaderboardRow,
+        r#"
+        SELECT u.username, s.current_streak, s.longest_streak, s.total_solved
+        FROM user_stats s
+        JOIN users u ON u.id = s.user_id
+        ORDER BY s.current_streak DESC, s.total_solved DESC
+        LIMIT $1
+        "#,
+        limit
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+pub async fn find_user_stats(pool: &PgPool, user_id: Uuid) -> AppResult<Option<UserStats>> {
+    sqlx::query_as!(
+        UserStats,
+        r#"
+        SELECT user_id, current_streak, longest_streak,
+               total_solved, total_attempts, last_solved_date
+        FROM user_stats
+        WHERE user_id = $1
+        "#,
+        user_id
+    )
+    .fetch_optional(pool)
     .await
     .map_err(AppError::from)
 }

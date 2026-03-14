@@ -10,7 +10,7 @@ use db::{
     models::Difficulty,
     queries::{
         create_submission, find_challenge_by_date, find_submissions_by_user_and_challenge,
-        find_user_challenge_history,
+        find_user_challenge_history, increment_total_attempts, upsert_user_stats_on_solve,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -39,6 +39,7 @@ pub struct TodayChallengeResponse {
     pub scheduled_date: chrono::NaiveDate,
     pub attempts_used: i32,
     pub is_solved: bool,
+    pub correct_answer: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -82,6 +83,13 @@ pub async fn today(
 
     let is_solved = submissions.iter().any(|s| s.is_correct);
     let attempts_used = submissions.len() as i32;
+    let is_exhausted = attempts_used >= challenge.max_attempts;
+
+    let correct_answer = if is_solved || is_exhausted {
+        Some(challenge.expected_answer)
+    } else {
+        None
+    };
 
     Ok((
         StatusCode::OK,
@@ -95,6 +103,7 @@ pub async fn today(
             scheduled_date: challenge.scheduled_date,
             attempts_used,
             is_solved,
+            correct_answer,
         }),
     ))
 }
@@ -135,6 +144,13 @@ pub async fn submit(
         attempt_number,
     )
     .await?;
+
+    // Update stats
+    increment_total_attempts(&state.pool, auth_user.id).await?;
+
+    if is_correct {
+        upsert_user_stats_on_solve(&state.pool, auth_user.id, date).await?;
+    }
 
     let attempts_remaining = challenge.max_attempts - attempt_number;
     let hint = if !is_correct && attempt_number >= 3 {
