@@ -1,22 +1,27 @@
 use axum::{Router, extract::DefaultBodyLimit, http::header};
+use tower_governor::GovernorLayer;
 use tower_http::{set_header::SetResponseHeaderLayer, trace::TraceLayer};
 
-use crate::{AppState, handlers};
+use crate::{AppState, handlers, middleware::rate_limit::RateLimiters};
 
 pub fn router(state: AppState) -> Router {
+    let limiters = RateLimiters::new();
+    limiters.spawn_cleanup();
+
+    // Auth routes get stricter limiter applied
+    let auth_routes = handlers::auth::router().layer(GovernorLayer::new(limiters.auth.clone()));
+
     let routes = Router::new()
         .merge(handlers::health::router())
-        .nest("/auth", handlers::auth::router())
+        .nest("/auth", auth_routes)
         .nest("/challenge", handlers::challenge::router())
         .nest("/leaderboard", handlers::leaderboard::router());
 
     Router::new()
         .nest("/api/v1", Router::new().merge(routes))
-        // Tracing
+        .layer(GovernorLayer::new(limiters.global.clone()))
         .layer(TraceLayer::new_for_http())
-        // Body limit (1 MB)
         .layer(DefaultBodyLimit::max(1024 * 1024))
-        // Security headers
         .layer(SetResponseHeaderLayer::overriding(
             header::X_CONTENT_TYPE_OPTIONS,
             header::HeaderValue::from_static("nosniff"),

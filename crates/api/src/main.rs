@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use api::{AppState, routes};
 use db::connection;
 use shared::config::Config;
@@ -25,7 +27,12 @@ async fn main() {
         .unwrap_or_else(|_| panic!("Failed to bind to address: {}", addr));
 
     tracing::info!("Listening on {addr}");
-    axum::serve(listener, router).await.expect("Server error");
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("Server error");
 }
 
 /// Initialize the tracing subscriber with env-filter support.
