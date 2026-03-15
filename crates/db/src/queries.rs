@@ -449,3 +449,105 @@ pub async fn revoke_all_user_refresh_tokens(pool: &PgPool, user_id: Uuid) -> App
     tracing::info!(%user_id, revoked = result.rows_affected(), "all refresh tokens revoked");
     Ok(())
 }
+
+// ── Password reset tokens ───────────────────────────────────────────────
+
+#[tracing::instrument(skip(pool, token_hash))]
+pub async fn create_password_reset_token(
+    pool: &PgPool,
+    user_id: Uuid,
+    token_hash: &str,
+    expires_at: chrono::DateTime<chrono::Utc>,
+) -> AppResult<()> {
+    // Revoke any existing unused reset tokens for this user
+    sqlx::query!(
+        r#"
+        UPDATE password_reset_tokens
+        SET used_at = now()
+        WHERE user_id = $1 AND used_at IS NULL
+        "#,
+        user_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    sqlx::query!(
+        r#"
+        INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+        VALUES ($1, $2, $3)
+        "#,
+        user_id,
+        token_hash,
+        expires_at,
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    tracing::debug!(%user_id, "password reset token created");
+    Ok(())
+}
+
+#[tracing::instrument(skip(pool, token_hash))]
+pub async fn find_password_reset_token_by_hash(
+    pool: &PgPool,
+    token_hash: &str,
+) -> AppResult<Option<crate::models::PasswordResetToken>> {
+    let result = sqlx::query_as!(
+        crate::models::PasswordResetToken,
+        r#"
+        SELECT id, user_id, token_hash, expires_at, created_at, used_at
+        FROM password_reset_tokens
+        WHERE token_hash = $1
+        "#,
+        token_hash,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    tracing::debug!(found = result.is_some(), "password reset token lookup");
+    Ok(result)
+}
+
+#[tracing::instrument(skip(pool))]
+pub async fn mark_password_reset_token_used(pool: &PgPool, token_id: Uuid) -> AppResult<()> {
+    sqlx::query!(
+        r#"
+        UPDATE password_reset_tokens
+        SET used_at = now()
+        WHERE id = $1 AND used_at IS NULL
+        "#,
+        token_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    tracing::debug!(%token_id, "password reset token marked as used");
+    Ok(())
+}
+
+#[tracing::instrument(skip(pool, password_hash))]
+pub async fn update_user_password(
+    pool: &PgPool,
+    user_id: Uuid,
+    password_hash: &str,
+) -> AppResult<()> {
+    sqlx::query!(
+        r#"
+        UPDATE users
+        SET password_hash = $2
+        WHERE id = $1
+        "#,
+        user_id,
+        password_hash,
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    tracing::info!(%user_id, "user password updated");
+    Ok(())
+}

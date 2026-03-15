@@ -42,6 +42,20 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+#[derive(Deserialize, Validate)]
+pub struct ForgotPasswordRequest {
+    #[validate(email(message = "Invalid email format"))]
+    pub email: String,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct ResetPasswordRequest {
+    pub token: String,
+
+    #[validate(length(min = 8, message = "Password must be at least 8 characters long"))]
+    pub new_password: String,
+}
+
 // ── Response types ──────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -74,6 +88,8 @@ pub fn router() -> Router<AppState> {
         .route("/login", post(login))
         .route("/logout", post(logout))
         .route("/refresh", post(refresh))
+        .route("/forgot-password", post(forgot_password))
+        .route("/reset-password", post(reset_password))
         .route("/me", get(me))
 }
 
@@ -231,6 +247,116 @@ pub async fn refresh(
             (header::SET_COOKIE, access_cookie.to_string()),
             (header::SET_COOKIE, refresh_cookie.to_string()),
         ],
+    ))
+}
+
+/// POST /api/v1/auth/forgot-password
+///
+/// Always returns 200 regardless of whether the email exists.
+/// This prevents email enumeration attacks.
+pub async fn forgot_password(
+    State(state): State<AppState>,
+    Json(payload): Json<ForgotPasswordRequest>,
+) -> AppResult<impl IntoResponse> {
+    payload.validate()?;
+
+    tracing::info!(email = %payload.email, "password reset requested");
+
+    // Look up user — but don't reveal whether the email exists
+    let user = db::queries::find_user_by_email(&state.pool, &payload.email).await?;
+
+    if let Some(user) = user {
+        // Generate reset token
+        let raw_token = auth::token::generate_refresh_token();
+        let token_hash = auth::token::hash_refresh_token(&raw_token);
+        let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+
+        db::queries::create_password_reset_token(&state.pool, user.id, &token_hash, expires_at)
+            .await?;
+
+        // In production, send an email. For now, log the reset link.
+        let reset_link = format!("http://localhost:3000/reset-password?token={}", raw_token);
+
+        tracing::info!(
+            user_id = %user.id,
+            "password reset link generated (dev only): {}",
+            reset_link
+        );
+
+        // TODO: Replace with real email sending
+        // email::send_password_reset(&user.email, &reset_link).await?;
+    } else {
+        tracing::debug!(email = %payload.email, "password reset for unknown email — ignoring silently");
+    }
+
+    // Always return success to prevent email enumeration
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "If an account with that email exists, a password reset link has been sent."
+        })),
+    ))
+}
+
+/// POST /api/v1/auth/reset-password
+pub async fn reset_password(
+    State(state): State<AppState>,
+    Json(payload): Json<ResetPasswordRequest>,
+) -> AppResult<impl IntoResponse> {
+    payload.validate()?;
+
+    let token_hash = auth::token::hash_refresh_token(&payload.token);
+
+    // Find the token
+    let stored = db::queries::find_password_reset_token_by_hash(&state.pool, &token_hash)
+        .await?
+        .ok_or_else(|| {
+            tracing::warn!("password reset failed — token not found");
+            AppError::BadRequest("Invalid or expired reset token".to_string())
+        })?;
+
+    // Check if already used
+    if stored.used_at.is_some() {
+        tracing::warn!(token_id = %stored.id, "password reset failed — token already used");
+        return Err(AppError::BadRequest(
+            "This reset link has already been used".to_string(),
+        ));
+    }
+
+    // Check if expired
+    if stored.expires_at < chrono::Utc::now() {
+        tracing::warn!(token_id = %stored.id, "password reset failed — token expired");
+        db::queries::mark_password_reset_token_used(&state.pool, stored.id).await?;
+        return Err(AppError::BadRequest(
+            "This reset link has expired".to_string(),
+        ));
+    }
+
+    // Hash the new password
+    let new_password = payload.new_password.clone();
+    let hashed = tokio::task::spawn_blocking(move || auth::password::hash_password(&new_password))
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "password hashing task panicked");
+            AppError::InternalError
+        })??;
+
+    // Update password
+    db::queries::update_user_password(&state.pool, stored.user_id, &hashed).await?;
+
+    // Mark token as used
+    db::queries::mark_password_reset_token_used(&state.pool, stored.id).await?;
+
+    // Revoke all refresh tokens — force re-login everywhere
+    db::queries::revoke_all_user_refresh_tokens(&state.pool, stored.user_id).await?;
+
+    tracing::info!(user_id = %stored.user_id, "password reset successful");
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Password has been reset. Please log in with your new password."
+        })),
     ))
 }
 

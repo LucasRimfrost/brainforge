@@ -40,7 +40,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setState({ user, loading: false });
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 401) {
-        setState({ user: null, loading: false });
+        // Access token missing or expired — try refreshing once
+        try {
+          await authApi.refresh();
+          const user = await authApi.getMe();
+          setState({ user, loading: false });
+        } catch {
+          // Refresh also failed — user is not logged in
+          setState({ user: null, loading: false });
+        }
       } else {
         setState({ user: null, loading: false });
       }

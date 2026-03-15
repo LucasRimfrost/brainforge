@@ -12,8 +12,14 @@ export class ApiRequestError extends Error {
   }
 }
 
-// Paths that should never trigger a token refresh (avoids infinite loops)
-const AUTH_PATHS = ["/api/v1/auth/login", "/api/v1/auth/refresh"];
+// Paths that should never trigger a token refresh.
+// /login, /refresh: avoids infinite loops
+// /me: this is an auth probe — useAuth handles its own refresh-then-retry
+const AUTH_PATHS = [
+  "/api/v1/auth/login",
+  "/api/v1/auth/refresh",
+  "/api/v1/auth/me",
+];
 
 // Shared state for deduplicating concurrent refresh attempts
 let refreshInFlight: Promise<boolean> | null = null;
@@ -56,16 +62,14 @@ export async function api<T>(
 ): Promise<T> {
   let res = await rawFetch(path, options);
 
-  // On 401, try refreshing the access token — unless the request itself is an auth endpoint
+  // On 401, try refreshing the access token — unless the request is an auth endpoint
   if (res.status === 401 && !AUTH_PATHS.some((p) => path.startsWith(p))) {
     const refreshed = await doRefresh();
     if (refreshed) {
       res = await rawFetch(path, options);
-    } else {
-      window.location.href = "/login";
-      // Throw so callers don't continue processing
-      throw new ApiRequestError(401, { error: "Session expired" });
     }
+    // If refresh failed, fall through to the !res.ok check below.
+    // The caller gets a 401 ApiRequestError and decides what to do.
   }
 
   if (!res.ok) {

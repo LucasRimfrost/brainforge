@@ -94,3 +94,13 @@ pub struct RefreshToken {
     pub created_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, FromRow)]
+pub struct PasswordResetToken {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub token_hash: String,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub used_at: Option<DateTime<Utc>>,
+}

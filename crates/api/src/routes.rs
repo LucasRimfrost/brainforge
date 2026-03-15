@@ -14,11 +14,13 @@ pub fn router(state: AppState) -> Router {
     let limiters = RateLimiters::new();
     limiters.spawn_cleanup();
 
-    // Rate-limited auth routes (login, register, refresh)
+    // Rate-limited auth routes (login, register, refresh, password reset)
     let auth_strict = Router::new()
         .route("/register", post(handlers::auth::register))
         .route("/login", post(handlers::auth::login))
         .route("/refresh", post(handlers::auth::refresh))
+        .route("/forgot-password", post(handlers::auth::forgot_password))
+        .route("/reset-password", post(handlers::auth::reset_password))
         .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(GovernorLayer::new(limiters.auth.clone()));
 
