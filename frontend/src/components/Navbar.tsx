@@ -56,6 +56,33 @@ export function Navbar() {
     );
   })();
 
+  // Minimal nav for unauthenticated users
+  if (!user) {
+    return (
+      <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
+        <div className="flex h-14 items-center justify-between px-4">
+          <div className="w-10" />
+
+          <Link
+            to="/login"
+            className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-2 py-1 text-lg font-bold tracking-tight transition-all duration-150 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <Zap className="size-5 text-primary" />
+            BrainForge
+          </Link>
+
+          <Button variant="ghost" size="icon" onClick={toggleTheme}>
+            {theme === "dark" ? (
+              <Sun className="size-4" />
+            ) : (
+              <Moon className="size-4" />
+            )}
+          </Button>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <>
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
@@ -70,10 +97,8 @@ export function Navbar() {
               <Menu className="size-6" strokeWidth={2.5} />
             </button>
 
-            <div className="mx-1 h-4 w-px bg-border" />
-
             {/* Shortcut icons */}
-            <div className="flex items-center gap-1">
+            <div className="ml-6 flex items-center gap-1">
 
             {/* Archive dropdown */}
             <div ref={archiveRef} className="relative">
@@ -130,9 +155,9 @@ export function Navbar() {
             BrainForge
           </Link>
 
-          {/* Right: streak + theme + user */}
+          {/* Right: streak + theme + avatar */}
           <div className="flex items-center gap-2">
-            {user && streak > 0 && (
+            {streak > 0 && (
               <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2.5 py-1 text-sm font-medium dark:bg-muted">
                 <Flame className="size-4 text-orange-500" />
                 <span>{streak}</span>
@@ -147,24 +172,13 @@ export function Navbar() {
               )}
             </Button>
 
-            {user ? (
-              <Link to="/settings" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-                <Avatar className="size-8 transition-all duration-150 hover:opacity-70 active:scale-95">
-                  <AvatarFallback className="text-xs">
-                    {user.username.slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </Link>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/login">Log in</Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link to="/register">Sign up</Link>
-                </Button>
-              </div>
-            )}
+            <Link to="/settings" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              <Avatar className="size-8 transition-all duration-150 hover:opacity-70 active:scale-95">
+                <AvatarFallback className="text-xs">
+                  {user.username.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
           </div>
         </div>
       </header>
