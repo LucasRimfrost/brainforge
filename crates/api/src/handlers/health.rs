@@ -17,7 +17,11 @@ struct HealthResponse {
 async fn health_check(State(state): State<AppState>) -> AppResult<Json<HealthResponse>> {
     sqlx::query!("SELECT 1 as result")
         .fetch_one(&state.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "health check database ping failed");
+            shared::error::AppError::DatabaseError(e)
+        })?;
 
     Ok(Json(HealthResponse {
         status: "healthy",

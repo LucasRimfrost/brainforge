@@ -10,9 +10,10 @@ pub struct Claims {
     pub sub: String, // user id
     pub exp: usize,  // expiration
     pub iat: usize,  // issued at
-    pub iss: String, // issuer (daily_challenge/domain)
+    pub iss: String, // issuer
 }
 
+#[tracing::instrument(skip(secret))]
 pub fn create_access_token(user_id: &str, secret: &str, expiry_minutes: i64) -> AppResult<String> {
     let now = Utc::now();
     let exp = (now + chrono::Duration::minutes(expiry_minutes)).timestamp() as usize;
@@ -24,31 +25,38 @@ pub fn create_access_token(user_id: &str, secret: &str, expiry_minutes: i64) -> 
         iss: ISSUER.to_string(),
     };
 
-    encode(
+    let token = encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
     )
     .map_err(|e| {
-        tracing::error!("Failed to encode JWT: {}", e);
+        tracing::error!(error = %e, "JWT encoding failed");
         AppError::InternalError
-    })
+    })?;
+
+    tracing::debug!(user_id, expiry_minutes, "access token issued");
+    Ok(token)
 }
 
+#[tracing::instrument(skip(token, secret), fields(token_len = token.len()))]
 pub fn validate_token(token: &str, secret: &str) -> AppResult<Claims> {
     let mut validation = Validation::default();
     validation.set_issuer(&[ISSUER]);
 
-    decode::<Claims>(
+    let claims = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
         &validation,
     )
     .map(|data| data.claims)
     .map_err(|e| {
-        tracing::warn!("JWT validation failed: {}", e);
+        tracing::warn!(error = %e, "JWT validation failed");
         AppError::Unauthorized
-    })
+    })?;
+
+    tracing::debug!(user_id = %claims.sub, "token validated");
+    Ok(claims)
 }
 
 #[cfg(test)]
@@ -61,7 +69,6 @@ mod tests {
     #[test]
     fn create_access_token_produces_valid_token() {
         let token = create_access_token(USER_ID, SECRET, 60).unwrap();
-        // JWT has three dot-separated base64 segments
         assert_eq!(token.split('.').count(), 3);
     }
 
@@ -69,7 +76,6 @@ mod tests {
     fn validate_token_accepts_valid_token() {
         let token = create_access_token(USER_ID, SECRET, 60).unwrap();
         let claims = validate_token(&token, SECRET).unwrap();
-
         assert_eq!(claims.sub, USER_ID);
         assert_eq!(claims.iss, "daily-challenge");
         assert!(claims.exp > claims.iat);
@@ -77,10 +83,8 @@ mod tests {
 
     #[test]
     fn validate_token_rejects_expired_token() {
-        // -5 minutes ensures it's well past jsonwebtoken's default 60s leeway
         let token = create_access_token(USER_ID, SECRET, -5).unwrap();
         let result = validate_token(&token, SECRET);
-
         assert!(result.is_err());
     }
 
@@ -88,7 +92,6 @@ mod tests {
     fn validate_token_rejects_wrong_secret() {
         let token = create_access_token(USER_ID, SECRET, 60).unwrap();
         let result = validate_token(&token, "wrong-secret");
-
         assert!(result.is_err());
     }
 
@@ -96,7 +99,6 @@ mod tests {
     fn validate_token_rejects_malformed_string() {
         let result = validate_token("not.a.jwt", SECRET);
         assert!(result.is_err());
-
         let result = validate_token("total-garbage", SECRET);
         assert!(result.is_err());
     }

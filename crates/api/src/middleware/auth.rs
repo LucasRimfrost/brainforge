@@ -20,7 +20,10 @@ impl FromRequestParts<AppState> for AuthUser {
     ) -> Result<Self, Self::Rejection> {
         let jar = CookieJar::from_headers(&parts.headers);
 
-        let cookie = jar.get("access_token").ok_or(AppError::Unauthorized)?;
+        let cookie = jar.get("access_token").ok_or_else(|| {
+            tracing::debug!("auth rejected — no access_token cookie");
+            AppError::Unauthorized
+        })?;
 
         let token = cookie.value();
 
@@ -30,15 +33,20 @@ impl FromRequestParts<AppState> for AuthUser {
             &Validation::default(),
         )
         .map_err(|e| {
-            tracing::warn!("JWT validation failed: {}", e);
+            tracing::warn!(error = %e, "auth rejected — invalid JWT");
             AppError::Unauthorized
         })?;
 
-        let user_id = Uuid::parse_str(&token_data.claims.sub).map_err(|_| {
-            tracing::error!("Invalid UUID in JWT sub claim");
+        let user_id = Uuid::parse_str(&token_data.claims.sub).map_err(|e| {
+            tracing::error!(
+                error = %e,
+                sub = %token_data.claims.sub,
+                "auth rejected — malformed UUID in JWT sub claim"
+            );
             AppError::Unauthorized
         })?;
 
+        tracing::debug!(user_id = %user_id, "user authenticated");
         Ok(AuthUser { id: user_id })
     }
 }

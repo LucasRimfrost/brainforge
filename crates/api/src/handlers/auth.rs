@@ -81,16 +81,20 @@ pub async fn register(
 ) -> AppResult<impl IntoResponse> {
     payload.validate()?;
 
+    tracing::info!(email = %payload.email, username = %payload.username, "registration attempt");
+
     let password = payload.password.clone();
     let hashed = tokio::task::spawn_blocking(move || auth::password::hash_password(&password))
         .await
-        .map_err(|_| AppError::InternalError)??;
+        .map_err(|e| {
+            tracing::error!(error = %e, "password hashing task panicked");
+            AppError::InternalError
+        })??;
 
-    // TODO: Create the user
     let user =
         db::queries::create_user(&state.pool, &payload.username, &payload.email, &hashed).await?;
 
-    tracing::info!("New user registered: {} ({})", user.id, user.email);
+    tracing::info!(user_id = %user.id, email = %user.email, "user registered");
 
     let token = auth::jwt::create_access_token(
         &user.id.to_string(),
@@ -118,19 +122,28 @@ pub async fn login(
 ) -> AppResult<impl IntoResponse> {
     payload.validate()?;
 
+    tracing::info!(email = %payload.email, "login attempt");
+
     let user = db::queries::find_user_by_email(&state.pool, &payload.email)
         .await?
-        .ok_or(AppError::InvalidCredentials)?;
+        .ok_or_else(|| {
+            tracing::warn!(email = %payload.email, "login failed — unknown email");
+            AppError::InvalidCredentials
+        })?;
 
+    let user_id = user.id;
     let password = payload.password.clone();
     let hash = user.password_hash.clone();
     let is_valid =
         tokio::task::spawn_blocking(move || auth::password::verify_password(&password, &hash))
             .await
-            .map_err(|_| AppError::InternalError)??;
+            .map_err(|e| {
+                tracing::error!(error = %e, "password verification task panicked");
+                AppError::InternalError
+            })??;
 
     if !is_valid {
-        tracing::warn!("Failed login attempt for user: {}", user.id);
+        tracing::warn!(user_id = %user_id, "login failed — wrong password");
         return Err(AppError::InvalidCredentials);
     }
 
@@ -141,6 +154,8 @@ pub async fn login(
     )?;
 
     let cookie = build_access_cookie(token, state.config.jwt_access_token_expiry_minutes);
+
+    tracing::info!(user_id = %user.id, "login successful");
 
     Ok((
         StatusCode::OK,
@@ -158,13 +173,16 @@ pub async fn me(
     State(state): State<AppState>,
     auth_user: AuthUser,
 ) -> AppResult<impl IntoResponse> {
-    let user = db::queries::find_user_by_id(&state.pool, auth_user.id)
+    let user_id = auth_user.id;
+
+    let user = db::queries::find_user_by_id(&state.pool, user_id)
         .await?
-        .ok_or(AppError::Unauthorized)?;
+        .ok_or_else(|| {
+            tracing::warn!(user_id = %user_id, "authenticated user not found in database");
+            AppError::Unauthorized
+        })?;
 
-    tracing::debug!("Fetched profile for user: {}", auth_user.id);
-
-    let stats = match find_user_stats(&state.pool, auth_user.id).await? {
+    let stats = match find_user_stats(&state.pool, user_id).await? {
         Some(s) => StatsResponse {
             current_streak: s.current_streak,
             longest_streak: s.longest_streak,
@@ -173,6 +191,8 @@ pub async fn me(
         },
         None => StatsResponse::default(),
     };
+
+    tracing::debug!(user_id = %user_id, "profile fetched");
 
     Ok((
         StatusCode::OK,
@@ -187,6 +207,8 @@ pub async fn me(
 
 /// POST /api/v1/auth/logout
 pub async fn logout() -> impl IntoResponse {
+    tracing::info!("user logged out");
+
     let cookie = build_logout_cookie();
     (
         StatusCode::NO_CONTENT,

@@ -7,13 +7,16 @@ use crate::models::{
     UserStats,
 };
 
+// ── Users ───────────────────────────────────────────────────────────────────
+
+#[tracing::instrument(skip(pool, password_hash), fields(email = %email))]
 pub async fn create_user(
     pool: &PgPool,
     username: &str,
     email: &str,
     password_hash: &str,
 ) -> AppResult<User> {
-    sqlx::query_as!(
+    let user = sqlx::query_as!(
         User,
         r#"
         INSERT INTO users (username, email, password_hash)
@@ -26,11 +29,15 @@ pub async fn create_user(
     )
     .fetch_one(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::info!(user_id = %user.id, "user created");
+    Ok(user)
 }
 
+#[tracing::instrument(skip(pool))]
 pub async fn find_user_by_email(pool: &PgPool, email: &str) -> AppResult<Option<User>> {
-    sqlx::query_as!(
+    let result = sqlx::query_as!(
         User,
         r#"
         SELECT id, username, email, password_hash, created_at
@@ -41,11 +48,15 @@ pub async fn find_user_by_email(pool: &PgPool, email: &str) -> AppResult<Option<
     )
     .fetch_optional(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::debug!(found = result.is_some(), "user lookup by email");
+    Ok(result)
 }
 
+#[tracing::instrument(skip(pool))]
 pub async fn find_user_by_id(pool: &PgPool, id: Uuid) -> AppResult<Option<User>> {
-    sqlx::query_as!(
+    let result = sqlx::query_as!(
         User,
         r#"
         SELECT id, username, email, password_hash, created_at
@@ -56,14 +67,20 @@ pub async fn find_user_by_id(pool: &PgPool, id: Uuid) -> AppResult<Option<User>>
     )
     .fetch_optional(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::debug!(found = result.is_some(), "user lookup by id");
+    Ok(result)
 }
 
+// ── Challenges ──────────────────────────────────────────────────────────────
+
+#[tracing::instrument(skip(pool))]
 pub async fn find_challenge_by_date(
     pool: &PgPool,
     scheduled_date: chrono::NaiveDate,
 ) -> AppResult<Option<Challenge>> {
-    sqlx::query_as!(
+    let result = sqlx::query_as!(
         Challenge,
         r#"
         SELECT id, title, description,
@@ -77,11 +94,19 @@ pub async fn find_challenge_by_date(
     )
     .fetch_optional(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::debug!(
+        found = result.is_some(),
+        %scheduled_date,
+        "challenge lookup by date"
+    );
+    Ok(result)
 }
 
+#[tracing::instrument(skip(pool))]
 pub async fn find_challenge_by_id(pool: &PgPool, id: Uuid) -> AppResult<Option<Challenge>> {
-    sqlx::query_as!(
+    let result = sqlx::query_as!(
         Challenge,
         r#"
         SELECT id, title, description,
@@ -95,15 +120,21 @@ pub async fn find_challenge_by_id(pool: &PgPool, id: Uuid) -> AppResult<Option<C
     )
     .fetch_optional(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::debug!(found = result.is_some(), "challenge lookup by id");
+    Ok(result)
 }
 
+// ── Submissions ─────────────────────────────────────────────────────────────
+
+#[tracing::instrument(skip(pool))]
 pub async fn find_submissions_by_user_and_challenge(
     pool: &PgPool,
     user_id: Uuid,
     challenge_id: Uuid,
 ) -> AppResult<Vec<Submission>> {
-    sqlx::query_as!(
+    let results = sqlx::query_as!(
         Submission,
         r#"
         SELECT id, user_id, challenge_id, answer,
@@ -116,9 +147,13 @@ pub async fn find_submissions_by_user_and_challenge(
     )
     .fetch_all(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::debug!(count = results.len(), "fetched submissions");
+    Ok(results)
 }
 
+#[tracing::instrument(skip(pool, answer))]
 pub async fn create_submission(
     pool: &PgPool,
     user_id: Uuid,
@@ -127,7 +162,7 @@ pub async fn create_submission(
     is_correct: bool,
     attempt_number: i32,
 ) -> AppResult<Submission> {
-    sqlx::query_as!(
+    let submission = sqlx::query_as!(
         Submission,
         r#"
         INSERT INTO submissions (user_id, challenge_id, answer,
@@ -144,15 +179,28 @@ pub async fn create_submission(
     )
     .fetch_one(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::info!(
+        submission_id = %submission.id,
+        %user_id,
+        %challenge_id,
+        is_correct,
+        attempt_number,
+        "submission recorded"
+    );
+    Ok(submission)
 }
 
+// ── User history ────────────────────────────────────────────────────────────
+
+#[tracing::instrument(skip(pool))]
 pub async fn find_user_challenge_history(
     pool: &PgPool,
     user_id: Uuid,
     limit: i64,
 ) -> AppResult<Vec<ChallengeHistory>> {
-    sqlx::query_as!(
+    let results = sqlx::query_as!(
         ChallengeHistory,
         r#"
         SELECT * FROM (
@@ -174,9 +222,15 @@ pub async fn find_user_challenge_history(
     )
     .fetch_all(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::debug!(count = results.len(), "fetched challenge history");
+    Ok(results)
 }
 
+// ── User stats ──────────────────────────────────────────────────────────────
+
+#[tracing::instrument(skip(pool))]
 pub async fn upsert_user_stats_on_solve(
     pool: &PgPool,
     user_id: Uuid,
@@ -213,9 +267,11 @@ pub async fn upsert_user_stats_on_solve(
     .await
     .map_err(AppError::from)?;
 
+    tracing::info!(%user_id, %solved_date, "user stats updated on solve");
     Ok(())
 }
 
+#[tracing::instrument(skip(pool))]
 pub async fn increment_total_attempts(pool: &PgPool, user_id: Uuid) -> AppResult<()> {
     sqlx::query!(
         r#"
@@ -230,11 +286,35 @@ pub async fn increment_total_attempts(pool: &PgPool, user_id: Uuid) -> AppResult
     .await
     .map_err(AppError::from)?;
 
+    tracing::debug!(%user_id, "total attempts incremented");
     Ok(())
 }
 
+#[tracing::instrument(skip(pool))]
+pub async fn find_user_stats(pool: &PgPool, user_id: Uuid) -> AppResult<Option<UserStats>> {
+    let result = sqlx::query_as!(
+        UserStats,
+        r#"
+        SELECT user_id, current_streak, longest_streak,
+               total_solved, total_attempts, last_solved_date
+        FROM user_stats
+        WHERE user_id = $1
+        "#,
+        user_id
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    tracing::debug!(found = result.is_some(), "user stats lookup");
+    Ok(result)
+}
+
+// ── Leaderboard ─────────────────────────────────────────────────────────────
+
+#[tracing::instrument(skip(pool))]
 pub async fn find_leaderboard(pool: &PgPool, limit: i64) -> AppResult<Vec<LeaderboardRow>> {
-    sqlx::query_as!(
+    let results = sqlx::query_as!(
         LeaderboardRow,
         r#"
         SELECT u.username, s.current_streak, s.longest_streak, s.total_solved
@@ -247,31 +327,21 @@ pub async fn find_leaderboard(pool: &PgPool, limit: i64) -> AppResult<Vec<Leader
     )
     .fetch_all(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::debug!(count = results.len(), "fetched leaderboard");
+    Ok(results)
 }
 
-pub async fn find_user_stats(pool: &PgPool, user_id: Uuid) -> AppResult<Option<UserStats>> {
-    sqlx::query_as!(
-        UserStats,
-        r#"
-        SELECT user_id, current_streak, longest_streak,
-               total_solved, total_attempts, last_solved_date
-        FROM user_stats
-        WHERE user_id = $1
-        "#,
-        user_id
-    )
-    .fetch_optional(pool)
-    .await
-    .map_err(AppError::from)
-}
+// ── Archive ─────────────────────────────────────────────────────────────────
 
+#[tracing::instrument(skip(pool))]
 pub async fn find_past_challenges_with_status(
     pool: &PgPool,
     user_id: Uuid,
     today: chrono::NaiveDate,
 ) -> AppResult<Vec<ArchiveRow>> {
-    sqlx::query_as!(
+    let results = sqlx::query_as!(
         ArchiveRow,
         r#"
         SELECT c.id, c.title,
@@ -290,5 +360,8 @@ pub async fn find_past_challenges_with_status(
     )
     .fetch_all(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    tracing::debug!(count = results.len(), "fetched past challenges");
+    Ok(results)
 }

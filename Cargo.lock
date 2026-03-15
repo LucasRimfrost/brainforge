@@ -413,6 +413,7 @@ dependencies = [
  "serde",
  "shared",
  "sqlx",
+ "tracing",
  "uuid",
 ]
 

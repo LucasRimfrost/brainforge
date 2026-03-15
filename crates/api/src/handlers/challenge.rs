@@ -87,14 +87,20 @@ pub async fn today(
     State(state): State<AppState>,
     auth_user: AuthUser,
 ) -> AppResult<impl IntoResponse> {
+    let user_id = auth_user.id;
     let date = Utc::now().date_naive();
+
+    tracing::debug!(user_id = %user_id, %date, "fetching today's challenge");
 
     let challenge = find_challenge_by_date(&state.pool, date)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or_else(|| {
+            tracing::warn!(%date, "no challenge scheduled for today");
+            AppError::NotFound
+        })?;
 
     let submissions =
-        find_submissions_by_user_and_challenge(&state.pool, auth_user.id, challenge.id).await?;
+        find_submissions_by_user_and_challenge(&state.pool, user_id, challenge.id).await?;
 
     let is_solved = submissions.iter().any(|s| s.is_correct);
     let attempts_used = submissions.len() as i32;
@@ -129,18 +135,32 @@ pub async fn submit(
     auth_user: AuthUser,
     Json(payload): Json<SubmitRequest>,
 ) -> AppResult<impl IntoResponse> {
-    let challenge = find_challenge_by_id(&state.pool, payload.challenge_id)
+    let user_id = auth_user.id;
+    let challenge_id = payload.challenge_id;
+
+    tracing::info!(
+        user_id = %user_id,
+        challenge_id = %challenge_id,
+        "submission attempt"
+    );
+
+    let challenge = find_challenge_by_id(&state.pool, challenge_id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or_else(|| {
+            tracing::warn!(challenge_id = %challenge_id, "challenge not found for submission");
+            AppError::NotFound
+        })?;
 
     let submissions =
-        find_submissions_by_user_and_challenge(&state.pool, auth_user.id, challenge.id).await?;
+        find_submissions_by_user_and_challenge(&state.pool, user_id, challenge.id).await?;
 
     if submissions.iter().any(|s| s.is_correct) {
+        tracing::debug!(user_id = %user_id, challenge_id = %challenge_id, "rejected — already solved");
         return Err(AppError::BadRequest("Challenge already solved".into()));
     }
 
     if submissions.len() as i32 >= challenge.max_attempts {
+        tracing::debug!(user_id = %user_id, challenge_id = %challenge_id, "rejected — no attempts remaining");
         return Err(AppError::BadRequest("No attempts remaining".into()));
     }
 
@@ -151,7 +171,7 @@ pub async fn submit(
 
     create_submission(
         &state.pool,
-        auth_user.id,
+        user_id,
         challenge.id,
         &payload.answer,
         is_correct,
@@ -159,14 +179,26 @@ pub async fn submit(
     )
     .await?;
 
-    // Update stats
-    increment_total_attempts(&state.pool, auth_user.id).await?;
+    increment_total_attempts(&state.pool, user_id).await?;
 
     if is_correct {
         let today = Utc::now().date_naive();
         if challenge.scheduled_date == today {
-            upsert_user_stats_on_solve(&state.pool, auth_user.id, today).await?;
+            upsert_user_stats_on_solve(&state.pool, user_id, today).await?;
         }
+        tracing::info!(
+            user_id = %user_id,
+            challenge_id = %challenge_id,
+            attempt_number,
+            "challenge solved"
+        );
+    } else {
+        tracing::debug!(
+            user_id = %user_id,
+            challenge_id = %challenge_id,
+            attempt_number,
+            "incorrect answer"
+        );
     }
 
     let attempts_remaining = challenge.max_attempts - attempt_number;
@@ -194,6 +226,9 @@ pub async fn history(
     Query(params): Query<HistoryParams>,
 ) -> AppResult<impl IntoResponse> {
     let limit = params.limit.unwrap_or(30);
+
+    tracing::debug!(user_id = %auth_user.id, limit, "fetching challenge history");
+
     let history = find_user_challenge_history(&state.pool, auth_user.id, limit).await?;
 
     Ok((StatusCode::OK, Json(history)))
@@ -205,6 +240,9 @@ pub async fn archive(
     auth_user: AuthUser,
 ) -> AppResult<impl IntoResponse> {
     let today = Utc::now().date_naive();
+
+    tracing::debug!(user_id = %auth_user.id, "fetching challenge archive");
+
     let rows = find_past_challenges_with_status(&state.pool, auth_user.id, today).await?;
 
     let entries: Vec<ArchiveEntry> = rows
@@ -229,9 +267,14 @@ pub async fn by_date(
     auth_user: AuthUser,
     Path(date): Path<chrono::NaiveDate>,
 ) -> AppResult<impl IntoResponse> {
+    tracing::debug!(user_id = %auth_user.id, %date, "fetching challenge by date");
+
     let challenge = find_challenge_by_date(&state.pool, date)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or_else(|| {
+            tracing::warn!(%date, "no challenge found for date");
+            AppError::NotFound
+        })?;
 
     let submissions =
         find_submissions_by_user_and_challenge(&state.pool, auth_user.id, challenge.id).await?;

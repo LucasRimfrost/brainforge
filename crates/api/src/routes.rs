@@ -1,14 +1,13 @@
-use axum::{Router, extract::DefaultBodyLimit, http::header};
+use axum::{Router, extract::DefaultBodyLimit, http::header, middleware};
 use tower_governor::GovernorLayer;
-use tower_http::{set_header::SetResponseHeaderLayer, trace::TraceLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 
-use crate::{AppState, handlers, middleware::rate_limit::RateLimiters};
+use crate::{AppState, handlers, middleware::logging, middleware::rate_limit::RateLimiters};
 
 pub fn router(state: AppState) -> Router {
     let limiters = RateLimiters::new();
     limiters.spawn_cleanup();
 
-    // Auth routes get stricter limiter applied
     let auth_routes = handlers::auth::router().layer(GovernorLayer::new(limiters.auth.clone()));
 
     let routes = Router::new()
@@ -18,9 +17,15 @@ pub fn router(state: AppState) -> Router {
         .nest("/leaderboard", handlers::leaderboard::router());
 
     Router::new()
-        .nest("/api/v1", Router::new().merge(routes))
+        .nest("/api/v1", routes)
+        // ── Observability (outermost → innermost) ───────────────────
+        .layer(logging::sensitive_headers_layer())
+        .layer(logging::trace_layer())
+        .layer(middleware::from_fn(logging::request_id))
+        .layer(middleware::from_fn(logging::logging))
+        // ── Rate limiting ───────────────────────────────────────────
         .layer(GovernorLayer::new(limiters.global.clone()))
-        .layer(TraceLayer::new_for_http())
+        // ── Security / limits ───────────────────────────────────────
         .layer(DefaultBodyLimit::max(1024 * 1024))
         .layer(SetResponseHeaderLayer::overriding(
             header::X_CONTENT_TYPE_OPTIONS,
