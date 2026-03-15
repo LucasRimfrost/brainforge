@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Zap } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,36 +15,44 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiRequestError } from "@/api/client";
 
-function fieldError(error: string): { field: "email" | "password" | null; message: string } {
-  const lower = error.toLowerCase();
-  if (lower.includes("email")) return { field: "email", message: error };
-  if (lower.includes("password") || lower.includes("credentials") || lower.includes("invalid"))
-    return { field: "password", message: error };
-  return { field: null, message: error };
-}
-
 export function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<{ field: string | null; message: string } | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
   if (user) return <Navigate to="/" replace />;
 
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (!email.trim()) e.email = "Email is required";
+    if (!password) e.password = "Password is required";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
+    if (!validate()) return;
+
     setSubmitting(true);
     try {
       await login({ email, password });
       navigate("/", { replace: true });
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        setError(fieldError(err.message));
+        const msg = err.message.toLowerCase();
+        if (msg.includes("email")) {
+          setErrors({ email: err.message });
+        } else if (msg.includes("password") || msg.includes("credentials") || msg.includes("invalid")) {
+          setErrors({ password: err.message });
+        } else {
+          toast.error(err.message);
+        }
       } else {
-        setError({ field: null, message: "Something went wrong. Please try again." });
+        toast.error("Something went wrong. Please try again.");
       }
     } finally {
       setSubmitting(false);
@@ -61,26 +70,20 @@ export function LoginPage() {
           <CardDescription>Log in to today's challenge</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="grid gap-4">
-            {error && !error.field && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error.message}
-              </p>
-            )}
+          <form noValidate onSubmit={handleSubmit} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                required
                 autoComplete="email"
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(null); }}
+                onChange={(e) => { setEmail(e.target.value); setErrors((p) => { const { email: _, ...rest } = p; return rest; }); }}
                 placeholder="you@example.com"
-                aria-invalid={error?.field === "email" || undefined}
+                aria-invalid={!!errors.email || undefined}
               />
-              {error?.field === "email" && (
-                <p className="text-sm text-destructive">{error.message}</p>
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
               )}
             </div>
             <div className="grid gap-2">
@@ -96,14 +99,13 @@ export function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                required
                 autoComplete="current-password"
                 value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(null); }}
-                aria-invalid={error?.field === "password" || undefined}
+                onChange={(e) => { setPassword(e.target.value); setErrors((p) => { const { password: _, ...rest } = p; return rest; }); }}
+                aria-invalid={!!errors.password || undefined}
               />
-              {error?.field === "password" && (
-                <p className="text-sm text-destructive">{error.message}</p>
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
               )}
             </div>
             <Button type="submit" disabled={submitting} className="w-full">

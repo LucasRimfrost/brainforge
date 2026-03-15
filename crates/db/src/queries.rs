@@ -73,6 +73,48 @@ pub async fn find_user_by_id(pool: &PgPool, id: Uuid) -> AppResult<Option<User>>
     Ok(result)
 }
 
+#[tracing::instrument(skip(pool))]
+pub async fn update_username(pool: &PgPool, user_id: Uuid, username: &str) -> AppResult<User> {
+    let user = sqlx::query_as!(
+        User,
+        r#"
+        UPDATE users
+        SET username = $2
+        WHERE id = $1
+        RETURNING id, username, email, password_hash, created_at
+        "#,
+        user_id,
+        username,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    tracing::info!(%user_id, %username, "username updated");
+    Ok(user)
+}
+
+#[tracing::instrument(skip(pool))]
+pub async fn update_email(pool: &PgPool, user_id: Uuid, email: &str) -> AppResult<User> {
+    let user = sqlx::query_as!(
+        User,
+        r#"
+        UPDATE users
+        SET email = $2
+        WHERE id = $1
+        RETURNING id, username, email, password_hash, created_at
+        "#,
+        user_id,
+        email,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    tracing::info!(%user_id, %email, "email updated");
+    Ok(user)
+}
+
 // ── Challenges ──────────────────────────────────────────────────────────────
 
 #[tracing::instrument(skip(pool))]

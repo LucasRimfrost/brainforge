@@ -41,6 +41,20 @@ export interface MessageResponse {
   message: string;
 }
 
+export interface UpdateProfileRequest {
+  username: string;
+}
+
+export interface UpdateEmailRequest {
+  new_email: string;
+  current_password: string;
+}
+
+export interface UpdatePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
 // ---- Challenge ----
 
 export interface Challenge {

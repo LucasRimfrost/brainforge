@@ -6,7 +6,7 @@ use tower_http::{
     set_header::SetResponseHeaderLayer,
 };
 
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 
 use crate::{AppState, handlers, middleware::logging, middleware::rate_limit::RateLimiters};
 
@@ -24,10 +24,13 @@ pub fn router(state: AppState) -> Router {
         .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(GovernorLayer::new(limiters.auth.clone()));
 
-    // Normal auth routes (me, logout) — only the global rate limiter applies
+    // Normal auth routes (me, logout, profile management) — only the global rate limiter applies
     let auth_normal = Router::new()
         .route("/me", get(handlers::auth::me))
-        .route("/logout", post(handlers::auth::logout));
+        .route("/logout", post(handlers::auth::logout))
+        .route("/profile", patch(handlers::auth::update_profile))
+        .route("/email", patch(handlers::auth::update_email))
+        .route("/password", patch(handlers::auth::update_password));
 
     let auth_routes = Router::new().merge(auth_strict).merge(auth_normal);
 
@@ -49,7 +52,7 @@ pub fn router(state: AppState) -> Router {
 
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::exact(allowed_origin))
-        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PATCH])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
         .allow_credentials(true);
 

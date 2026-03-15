@@ -9,6 +9,7 @@ import { ChallengePage } from "@/pages/ChallengePage";
 import { ArchivePage } from "@/pages/ArchivePage";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { LeaderboardPage } from "@/pages/LeaderboardPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 import { useAuth } from "@/hooks/useAuth";
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
             <Route path="/challenge/:date" element={<ChallengePage />} />
             <Route path="/archive" element={<ArchivePage />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
 
           {/* Fallback */}

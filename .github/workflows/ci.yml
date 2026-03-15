@@ -104,6 +104,7 @@ jobs:
           DB_NAME: daily_challenge_test
           JWT_SECRET: ci-test-secret-key-not-for-production
           JWT_ACCESS_TOKEN_EXPIRY_MINUTES: "15"
+          REFRESH_TOKEN_EXPIRY_DAYS: "7"
           BACKEND_HOST: 127.0.0.1
           BACKEND_PORT: "0"
         run: cargo test -p api --test '*'

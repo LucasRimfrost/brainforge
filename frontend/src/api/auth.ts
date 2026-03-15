@@ -5,6 +5,9 @@ import type {
   MessageResponse,
   RegisterRequest,
   ResetPasswordRequest,
+  UpdateEmailRequest,
+  UpdatePasswordRequest,
+  UpdateProfileRequest,
   User,
   UserWithStats,
 } from "./types";
@@ -43,6 +46,27 @@ export function forgotPassword(data: ForgotPasswordRequest): Promise<MessageResp
 export function resetPassword(data: ResetPasswordRequest): Promise<MessageResponse> {
   return api<MessageResponse>(`${BASE}/reset-password`, {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateProfile(data: UpdateProfileRequest): Promise<User> {
+  return api<User>(`${BASE}/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateEmail(data: UpdateEmailRequest): Promise<User> {
+  return api<User>(`${BASE}/email`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updatePassword(data: UpdatePasswordRequest): Promise<MessageResponse> {
+  return api<MessageResponse>(`${BASE}/password`, {
+    method: "PATCH",
     body: JSON.stringify(data),
   });
 }

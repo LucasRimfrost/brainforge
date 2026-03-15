@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Zap } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,39 +15,58 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiRequestError } from "@/api/client";
 
-type Field = "username" | "email" | "password";
-
-function fieldError(error: string): { field: Field | null; message: string } {
-  const lower = error.toLowerCase();
-  if (lower.includes("username")) return { field: "username", message: error };
-  if (lower.includes("email")) return { field: "email", message: error };
-  if (lower.includes("password")) return { field: "password", message: error };
-  return { field: null, message: error };
-}
-
 export function RegisterPage() {
   const { user, register } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<{ field: string | null; message: string } | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
   if (user) return <Navigate to="/" replace />;
 
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (!username.trim()) e.username = "Username is required";
+    else if (username.length < 3 || username.length > 30) e.username = "Username must be between 3 and 30 characters";
+    if (!email.trim()) e.email = "Email is required";
+    if (!password) e.password = "Password is required";
+    else if (password.length < 8) e.password = "Password must be at least 8 characters";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  function clearError(field: string) {
+    setErrors((p) => {
+      const next = { ...p };
+      delete next[field];
+      return next;
+    });
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
+    if (!validate()) return;
+
     setSubmitting(true);
     try {
       await register({ username, email, password });
       navigate("/", { replace: true });
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        setError(fieldError(err.message));
+        const msg = err.message.toLowerCase();
+        if (msg.includes("username")) {
+          setErrors({ username: err.message });
+        } else if (msg.includes("email")) {
+          setErrors({ email: err.message });
+        } else if (msg.includes("password")) {
+          setErrors({ password: err.message });
+        } else {
+          toast.error(err.message);
+        }
       } else {
-        setError({ field: null, message: "Something went wrong. Please try again." });
+        toast.error("Something went wrong. Please try again.");
       }
     } finally {
       setSubmitting(false);
@@ -64,25 +84,21 @@ export function RegisterPage() {
           <CardDescription>Start solving daily challenges</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="grid gap-4">
-            {error && !error.field && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error.message}
-              </p>
-            )}
+          <form noValidate onSubmit={handleSubmit} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
               <Input
                 id="username"
-                required
                 autoComplete="username"
                 value={username}
-                onChange={(e) => { setUsername(e.target.value); setError(null); }}
+                onChange={(e) => { setUsername(e.target.value); clearError("username"); }}
                 placeholder="coolhacker42"
-                aria-invalid={error?.field === "username" || undefined}
+                aria-invalid={!!errors.username || undefined}
               />
-              {error?.field === "username" && (
-                <p className="text-sm text-destructive">{error.message}</p>
+              {errors.username ? (
+                <p className="text-sm text-destructive">{errors.username}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">3–30 characters</p>
               )}
             </div>
             <div className="grid gap-2">
@@ -90,15 +106,14 @@ export function RegisterPage() {
               <Input
                 id="email"
                 type="email"
-                required
                 autoComplete="email"
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(null); }}
+                onChange={(e) => { setEmail(e.target.value); clearError("email"); }}
                 placeholder="you@example.com"
-                aria-invalid={error?.field === "email" || undefined}
+                aria-invalid={!!errors.email || undefined}
               />
-              {error?.field === "email" && (
-                <p className="text-sm text-destructive">{error.message}</p>
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
               )}
             </div>
             <div className="grid gap-2">
@@ -106,15 +121,13 @@ export function RegisterPage() {
               <Input
                 id="password"
                 type="password"
-                required
-                minLength={8}
                 autoComplete="new-password"
                 value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(null); }}
-                aria-invalid={error?.field === "password" || undefined}
+                onChange={(e) => { setPassword(e.target.value); clearError("password"); }}
+                aria-invalid={!!errors.password || undefined}
               />
-              {error?.field === "password" ? (
-                <p className="text-sm text-destructive">{error.message}</p>
+              {errors.password ? (
+                <p className="text-sm text-destructive">{errors.password}</p>
               ) : (
                 <p className="text-sm text-muted-foreground">At least 8 characters</p>
               )}

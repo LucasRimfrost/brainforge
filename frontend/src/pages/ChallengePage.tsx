@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { getChallengeByDate, getToday, submitAnswer } from "@/api/challenge";
+import { toast } from "sonner";
 import { ApiRequestError } from "@/api/client";
 import type { Challenge, SubmitResponse } from "@/api/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -74,7 +75,7 @@ export function ChallengePage() {
   const [shaking, setShaking] = useState(false);
   const [poppedDot, setPoppedDot] = useState(-1);
   const [hint, setHint] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState("");
+  const [answerError, setAnswerError] = useState("");
   const [copied, setCopied] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -129,11 +130,14 @@ export function ChallengePage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!answer.trim() || !challenge) return;
+    if (!challenge) return;
+    if (!answer.trim()) {
+      setAnswerError("Enter an answer");
+      return;
+    }
 
     setSubmitting(true);
     setLastResult(null);
-    setSubmitError("");
 
     try {
       const result = await submitAnswer({
@@ -168,7 +172,7 @@ export function ChallengePage() {
       }
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        setSubmitError(err.message);
+        toast.error(err.message);
       }
     } finally {
       setSubmitting(false);
@@ -295,13 +299,6 @@ export function ChallengePage() {
             </div>
           )}
 
-          {/* Submit error */}
-          {submitError && (
-            <div className="animate-slide-up-fade rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {submitError}
-            </div>
-          )}
-
           {/* End state: solved */}
           {challenge.is_solved && (
             <div className="animate-slide-up-fade rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-5 text-center">
@@ -375,20 +372,23 @@ export function ChallengePage() {
           {/* Input form */}
           {!done && (
             <form
+              noValidate
               onSubmit={handleSubmit}
-              className="flex items-center gap-2"
+              className="grid gap-2"
             >
+              <div className="flex items-center gap-2">
               <Input
                 ref={inputRef}
                 value={answer}
                 onChange={(e) => {
                   setAnswer(e.target.value);
-                  setSubmitError("");
+                  setAnswerError("");
                 }}
                 placeholder="Type your answer..."
                 disabled={submitting}
                 autoComplete="off"
                 className="flex-1"
+                aria-invalid={!!answerError || undefined}
               />
               {hint && (
                 <Button
@@ -409,7 +409,7 @@ export function ChallengePage() {
               )}
               <Button
                 type="submit"
-                disabled={submitting || !answer.trim()}
+                disabled={submitting}
                 size="lg"
               >
                 {submitting ? (
@@ -418,6 +418,10 @@ export function ChallengePage() {
                   <Send className="size-4" />
                 )}
               </Button>
+              </div>
+              {answerError && (
+                <p className="text-sm text-destructive">{answerError}</p>
+              )}
             </form>
           )}
         </CardContent>

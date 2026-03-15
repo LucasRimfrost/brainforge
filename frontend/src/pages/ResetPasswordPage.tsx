@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { KeyRound } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,7 +22,7 @@ export function ResetPasswordPage() {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -47,25 +48,39 @@ export function ResetPasswordPage() {
     );
   }
 
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (!password) e.password = "Password is required";
+    else if (password.length < 8) e.password = "Password must be at least 8 characters";
+    if (!confirmPassword) e.confirmPassword = "Please confirm your password";
+    else if (password !== confirmPassword) e.confirmPassword = "Passwords do not match";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  function clearError(field: string) {
+    setErrors((p) => {
+      const next = { ...p };
+      delete next[field];
+      return next;
+    });
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+    if (!validate()) return;
 
     setSubmitting(true);
     try {
       await resetPassword({ token: token!, new_password: password });
       setSuccess(true);
+      toast.success("Password has been reset. Redirecting to login...");
       setTimeout(() => navigate("/login", { replace: true }), 3000);
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        setError(err.message);
+        toast.error(err.message);
       } else {
-        setError("Something went wrong. Please try again.");
+        toast.error("Something went wrong. Please try again.");
       }
     } finally {
       setSubmitting(false);
@@ -85,8 +100,8 @@ export function ResetPasswordPage() {
         <CardContent>
           {success ? (
             <div className="grid gap-4">
-              <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400">
-                Password has been reset. Redirecting to login...
+              <p className="text-sm text-muted-foreground text-center">
+                Redirecting to login...
               </p>
               <Link to="/login">
                 <Button variant="outline" className="w-full">
@@ -96,44 +111,44 @@ export function ResetPasswordPage() {
             </div>
           ) : (
             <>
-              <form onSubmit={handleSubmit} className="grid gap-4">
-                {error && (
-                  <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {error}
-                  </p>
-                )}
+              <form noValidate onSubmit={handleSubmit} className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="password">New password</Label>
                   <Input
                     id="password"
                     type="password"
-                    required
-                    minLength={8}
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value);
-                      setError(null);
+                      clearError("password");
                     }}
+                    aria-invalid={!!errors.password || undefined}
                   />
-                  <p className="text-sm text-muted-foreground">
-                    At least 8 characters
-                  </p>
+                  {errors.password ? (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      At least 8 characters
+                    </p>
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="confirm-password">Confirm password</Label>
                   <Input
                     id="confirm-password"
                     type="password"
-                    required
-                    minLength={8}
                     autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => {
                       setConfirmPassword(e.target.value);
-                      setError(null);
+                      clearError("confirmPassword");
                     }}
+                    aria-invalid={!!errors.confirmPassword || undefined}
                   />
+                  {errors.confirmPassword && (
+                    <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                  )}
                 </div>
                 <Button type="submit" disabled={submitting} className="w-full">
                   {submitting ? "Resetting..." : "Reset password"}

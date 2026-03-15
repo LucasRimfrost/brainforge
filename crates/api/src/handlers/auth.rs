@@ -56,6 +56,32 @@ pub struct ResetPasswordRequest {
     pub new_password: String,
 }
 
+#[derive(Deserialize, Validate)]
+pub struct UpdateProfileRequest {
+    #[validate(length(
+        min = 3,
+        max = 30,
+        message = "Username must be between 3 and 30 characters"
+    ))]
+    pub username: String,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct UpdateEmailRequest {
+    #[validate(email(message = "Invalid email format"))]
+    pub new_email: String,
+    #[validate(length(min = 1, message = "Password cannot be empty"))]
+    pub current_password: String,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct UpdatePasswordRequest {
+    #[validate(length(min = 1, message = "Current password cannot be empty"))]
+    pub current_password: String,
+    #[validate(length(min = 8, message = "New password must be at least 8 characters long"))]
+    pub new_password: String,
+}
+
 // ── Response types ──────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -406,6 +432,128 @@ pub async fn logout() -> impl IntoResponse {
         StatusCode::NO_CONTENT,
         [(header::SET_COOKIE, cookie.to_string())],
     )
+}
+
+/// PATCH /api/v1/auth/profile
+pub async fn update_profile(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(payload): Json<UpdateProfileRequest>,
+) -> AppResult<impl IntoResponse> {
+    payload.validate()?;
+
+    let user_id = auth_user.id;
+    tracing::info!(%user_id, username = %payload.username, "profile update attempt");
+
+    let user = db::queries::update_username(&state.pool, user_id, &payload.username).await?;
+
+    tracing::info!(%user_id, "profile updated");
+
+    Ok((
+        StatusCode::OK,
+        Json(AuthResponse {
+            id: user.id.to_string(),
+            username: user.username,
+            email: user.email,
+        }),
+    ))
+}
+
+/// PATCH /api/v1/auth/email
+pub async fn update_email(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(payload): Json<UpdateEmailRequest>,
+) -> AppResult<impl IntoResponse> {
+    payload.validate()?;
+
+    let user_id = auth_user.id;
+    tracing::info!(%user_id, new_email = %payload.new_email, "email update attempt");
+
+    let user = db::queries::find_user_by_id(&state.pool, user_id)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    let password = payload.current_password.clone();
+    let hash = user.password_hash.clone();
+    let is_valid =
+        tokio::task::spawn_blocking(move || auth::password::verify_password(&password, &hash))
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "password verification task panicked");
+                AppError::InternalError
+            })??;
+
+    if !is_valid {
+        tracing::warn!(%user_id, "email update failed — wrong password");
+        return Err(AppError::InvalidCredentials);
+    }
+
+    let user = db::queries::update_email(&state.pool, user_id, &payload.new_email).await?;
+
+    tracing::info!(%user_id, "email updated");
+
+    Ok((
+        StatusCode::OK,
+        Json(AuthResponse {
+            id: user.id.to_string(),
+            username: user.username,
+            email: user.email,
+        }),
+    ))
+}
+
+/// PATCH /api/v1/auth/password
+pub async fn update_password(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(payload): Json<UpdatePasswordRequest>,
+) -> AppResult<impl IntoResponse> {
+    payload.validate()?;
+
+    let user_id = auth_user.id;
+    tracing::info!(%user_id, "password change attempt");
+
+    let user = db::queries::find_user_by_id(&state.pool, user_id)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    let current = payload.current_password.clone();
+    let hash = user.password_hash.clone();
+    let is_valid =
+        tokio::task::spawn_blocking(move || auth::password::verify_password(&current, &hash))
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "password verification task panicked");
+                AppError::InternalError
+            })??;
+
+    if !is_valid {
+        tracing::warn!(%user_id, "password change failed — wrong current password");
+        return Err(AppError::InvalidCredentials);
+    }
+
+    let new_password = payload.new_password.clone();
+    let hashed = tokio::task::spawn_blocking(move || auth::password::hash_password(&new_password))
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "password hashing task panicked");
+            AppError::InternalError
+        })??;
+
+    db::queries::update_user_password(&state.pool, user_id, &hashed).await?;
+
+    // Revoke all refresh tokens — force re-login on other devices
+    revoke_all_user_refresh_tokens(&state.pool, user_id).await?;
+
+    tracing::info!(%user_id, "password changed");
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Password updated successfully"
+        })),
+    ))
 }
 
 // ── Private helpers ─────────────────────────────────────────────────────────

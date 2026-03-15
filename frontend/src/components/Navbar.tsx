@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Archive, Flame, LogOut, Moon, Sun, Trophy, History, Zap } from "lucide-react";
+import { Archive, Flame, LogOut, Moon, Settings, Sun, Trophy, History, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -107,6 +107,12 @@ export function Navbar() {
                   <p className="text-muted-foreground">{user.email}</p>
                 </div>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/settings">
+                    <Settings className="mr-2 size-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => logout()}>
                   <LogOut className="mr-2 size-4" />
                   Log out

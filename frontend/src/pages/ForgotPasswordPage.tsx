@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { KeyRound } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,20 +18,28 @@ export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (!email.trim()) e.email = "Email is required";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
+    if (!validate()) return;
+
     setSubmitting(true);
     try {
       await forgotPassword({ email });
-      setSubmitted(true);
     } catch {
-      // Show success anyway to match backend behavior (prevent email enumeration)
-      setSubmitted(true);
+      // Show success anyway to prevent email enumeration
     } finally {
       setSubmitting(false);
+      setSubmitted(true);
+      toast.success("If an account with that email exists, a password reset link has been sent.");
     }
   }
 
@@ -49,9 +58,8 @@ export function ForgotPasswordPage() {
         <CardContent>
           {submitted ? (
             <div className="grid gap-4">
-              <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400">
-                If an account with that email exists, a password reset link has
-                been sent.
+              <p className="text-sm text-muted-foreground text-center">
+                Check your inbox for a reset link.
               </p>
               <Link to="/login">
                 <Button variant="outline" className="w-full">
@@ -61,26 +69,24 @@ export function ForgotPasswordPage() {
             </div>
           ) : (
             <>
-              <form onSubmit={handleSubmit} className="grid gap-4">
-                {error && (
-                  <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {error}
-                  </p>
-                )}
+              <form noValidate onSubmit={handleSubmit} className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
-                    required
                     autoComplete="email"
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
-                      setError(null);
+                      setErrors({});
                     }}
                     placeholder="you@example.com"
+                    aria-invalid={!!errors.email || undefined}
                   />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
                 </div>
                 <Button type="submit" disabled={submitting} className="w-full">
                   {submitting ? "Sending..." : "Send reset link"}
