@@ -8,6 +8,7 @@ pub struct Config {
     pub host: String,
     pub port: String,
     pub static_dir: Option<String>,
+    pub cors_origin: Option<String>,
 }
 
 impl Config {
@@ -21,6 +22,7 @@ impl Config {
             host: env::var("BACKEND_HOST")?,
             port: env::var("BACKEND_PORT")?,
             static_dir: env::var("STATIC_DIR").ok(),
+            cors_origin: env::var("CORS_ORIGIN").ok(),
         })
     }
 }

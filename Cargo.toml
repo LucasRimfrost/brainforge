@@ -34,6 +34,7 @@ tower-http = { version = "0.6", features = [
     "set-header",
     "sensitive-headers",
     "fs",
+    "cors",
 ] }
 tower_governor = { version = "0.8", features = ["axum", "tracing"] }
 governor = "0.10"

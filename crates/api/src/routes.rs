@@ -1,6 +1,7 @@
 use axum::{Router, extract::DefaultBodyLimit, http::header, middleware};
 use tower_governor::GovernorLayer;
 use tower_http::{
+    cors::{AllowOrigin, CorsLayer},
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
 };
@@ -11,13 +12,31 @@ pub fn router(state: AppState) -> Router {
     let limiters = RateLimiters::new();
     limiters.spawn_cleanup();
 
-    let auth_routes = handlers::auth::router().layer(GovernorLayer::new(limiters.auth.clone()));
+    let auth_routes = handlers::auth::router()
+        .layer(DefaultBodyLimit::max(16 * 1024))
+        .layer(GovernorLayer::new(limiters.auth.clone()));
+
+    let challenge_routes = handlers::challenge::router().layer(DefaultBodyLimit::max(64 * 1024));
 
     let routes = Router::new()
         .merge(handlers::health::router())
         .nest("/auth", auth_routes)
-        .nest("/challenge", handlers::challenge::router())
+        .nest("/challenge", challenge_routes)
         .nest("/leaderboard", handlers::leaderboard::router());
+
+    let allowed_origin = state
+        .config
+        .cors_origin
+        .as_deref()
+        .unwrap_or("http://localhost:3000")
+        .parse()
+        .expect("Invalid CORS_ORIGIN");
+
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::exact(allowed_origin))
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+        .allow_credentials(true);
 
     let app = Router::new()
         .nest("/api/v1", routes)
@@ -28,6 +47,7 @@ pub fn router(state: AppState) -> Router {
         .layer(middleware::from_fn(logging::logging))
         // ── Rate limiting ───────────────────────────────────────────
         .layer(GovernorLayer::new(limiters.global.clone()))
+        .layer(cors)
         // ── Security / limits ───────────────────────────────────────
         .layer(DefaultBodyLimit::max(1024 * 1024))
         .layer(SetResponseHeaderLayer::overriding(
@@ -53,6 +73,12 @@ pub fn router(state: AppState) -> Router {
         .layer(SetResponseHeaderLayer::overriding(
             header::HeaderName::from_static("permissions-policy"),
             header::HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("content-security-policy"),
+            header::HeaderValue::from_static(
+                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            ),
         ));
 
     if let Some(ref dir) = state.config.static_dir {
