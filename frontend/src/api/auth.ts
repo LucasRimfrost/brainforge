@@ -26,6 +26,10 @@ export function logout(): Promise<void> {
   return api<void>(`${BASE}/logout`, { method: "POST" });
 }
 
+export function refresh(): Promise<void> {
+  return api<void>(`${BASE}/refresh`, { method: "POST" });
+}
+
 export function getMe(): Promise<UserWithStats> {
   return api<UserWithStats>(`${BASE}/me`);
 }

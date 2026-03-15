@@ -6,15 +6,28 @@ use tower_http::{
     set_header::SetResponseHeaderLayer,
 };
 
+use axum::routing::{get, post};
+
 use crate::{AppState, handlers, middleware::logging, middleware::rate_limit::RateLimiters};
 
 pub fn router(state: AppState) -> Router {
     let limiters = RateLimiters::new();
     limiters.spawn_cleanup();
 
-    let auth_routes = handlers::auth::router()
+    // Rate-limited auth routes (login, register, refresh)
+    let auth_strict = Router::new()
+        .route("/register", post(handlers::auth::register))
+        .route("/login", post(handlers::auth::login))
+        .route("/refresh", post(handlers::auth::refresh))
         .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(GovernorLayer::new(limiters.auth.clone()));
+
+    // Normal auth routes (me, logout) — only the global rate limiter applies
+    let auth_normal = Router::new()
+        .route("/me", get(handlers::auth::me))
+        .route("/logout", post(handlers::auth::logout));
+
+    let auth_routes = Router::new().merge(auth_strict).merge(auth_normal);
 
     let challenge_routes = handlers::challenge::router().layer(DefaultBodyLimit::max(64 * 1024));
 
