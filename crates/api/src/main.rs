@@ -8,7 +8,6 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-
     init_tracing();
 
     let config = Config::from_env().expect("Failed to load configuration");
@@ -18,7 +17,6 @@ async fn main() {
         .expect("Failed to connect to database");
 
     let addr = format!("{}:{}", config.host, config.port);
-
     let state = AppState { pool, config };
     let router = routes::router(state);
 
@@ -27,12 +25,40 @@ async fn main() {
         .unwrap_or_else(|_| panic!("Failed to bind to address: {}", addr));
 
     tracing::info!("Listening on {addr}");
+
     axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal())
     .await
     .expect("Server error");
+}
+
+async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => tracing::info!("Ctrl+C received, shutting down"),
+        _ = terminate => tracing::info!("SIGTERM received, shutting down"),
+    }
 }
 
 /// Initialize the tracing subscriber with env-filter support.
