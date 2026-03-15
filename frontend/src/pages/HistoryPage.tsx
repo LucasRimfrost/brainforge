@@ -82,7 +82,7 @@ export function HistoryPage() {
   const solved = entries.filter((e) => e.is_correct).length;
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl space-y-1">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">

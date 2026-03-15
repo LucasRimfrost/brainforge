@@ -14,7 +14,8 @@ export interface UserStats {
 }
 
 export interface UserWithStats extends User {
-  stats: UserStats;
+  trivia_stats: UserStats;
+  code_output_stats: UserStats;
 }
 
 export interface RegisterRequest {
@@ -68,6 +69,7 @@ export interface Challenge {
   attempts_used: number;
   is_solved: boolean;
   correct_answer: string | null;
+  previous_guesses: string[];
 }
 
 export interface SubmitRequest {
@@ -117,6 +119,7 @@ export interface CodeOutputChallenge {
   attempts_used: number;
   is_solved: boolean;
   correct_answer: string | null;
+  previous_guesses: string[];
 }
 
 export interface CodeOutputArchiveEntry {

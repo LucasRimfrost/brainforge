@@ -96,7 +96,7 @@ export function ForgotPasswordPage() {
                 Remember your password?{" "}
                 <Link
                   to="/login"
-                  className="text-primary underline-offset-4 hover:underline"
+                  className="rounded-sm text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   Log in
                 </Link>

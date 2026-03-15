@@ -88,7 +88,7 @@ export function CodeOutputHistoryPage() {
   const solved = entries.filter((e) => e.is_correct).length;
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl space-y-1">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -147,7 +147,7 @@ export function CodeOutputHistoryPage() {
                             </p>
                             <Badge
                               variant="outline"
-                              className="border-neutral-700 bg-neutral-800 text-[10px] text-neutral-300"
+                              className="text-[10px] bg-muted text-muted-foreground"
                             >
                               {getLanguageLabel(entry.language)}
                             </Badge>

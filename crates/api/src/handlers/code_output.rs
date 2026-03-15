@@ -51,6 +51,7 @@ pub struct CodeOutputChallengeResponse {
     pub attempts_used: i32,
     pub is_solved: bool,
     pub correct_answer: Option<String>,
+    pub previous_guesses: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -116,6 +117,8 @@ pub async fn today(
     let attempts_used = submissions.len() as i32;
     let is_exhausted = attempts_used >= challenge.max_attempts;
 
+    let previous_guesses: Vec<String> = submissions.iter().map(|s| s.answer.clone()).collect();
+
     // Don't expose the code_snippet's expected output in the response
     // Only reveal after solving or exhausting attempts
     let correct_answer = if is_solved || is_exhausted {
@@ -139,6 +142,7 @@ pub async fn today(
             attempts_used,
             is_solved,
             correct_answer,
+            previous_guesses,
         }),
     ))
 }
@@ -301,6 +305,8 @@ pub async fn by_date(
     let attempts_used = submissions.len() as i32;
     let is_exhausted = attempts_used >= challenge.max_attempts;
 
+    let previous_guesses: Vec<String> = submissions.iter().map(|s| s.answer.clone()).collect();
+
     let correct_answer = if is_solved || is_exhausted {
         Some(challenge.expected_output.clone())
     } else {
@@ -322,6 +328,7 @@ pub async fn by_date(
             attempts_used,
             is_solved,
             correct_answer,
+            previous_guesses,
         }),
     ))
 }

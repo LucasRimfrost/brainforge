@@ -1,43 +1,51 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
+    /* Warm off-white background — not pure white */
+    --background: oklch(0.98 0.004 90);
+    /* Dark gray body text — not pure black, easier on the eyes */
+    --foreground: oklch(0.18 0.005 60);
+    /* Cards are true white to lift off the warm bg */
     --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
+    --card-foreground: oklch(0.18 0.005 60);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --popover-foreground: oklch(0.18 0.005 60);
+    /* Primary — warm dark tone */
+    --primary: oklch(0.22 0.01 60);
+    --primary-foreground: oklch(0.985 0.003 90);
+    /* Secondary/muted — warm light gray */
+    --secondary: oklch(0.955 0.005 85);
+    --secondary-foreground: oklch(0.22 0.01 60);
+    --muted: oklch(0.95 0.006 85);
+    /* Muted text — warm gray, not cool */
+    --muted-foreground: oklch(0.52 0.01 60);
+    --accent: oklch(0.955 0.005 85);
+    --accent-foreground: oklch(0.22 0.01 60);
+    --destructive: oklch(0.55 0.24 27);
+    /* Borders — warm tint */
+    --border: oklch(0.905 0.008 80);
+    --input: oklch(0.905 0.008 80);
+    --ring: oklch(0.68 0.01 60);
     --chart-1: oklch(0.809 0.105 251.813);
     --chart-2: oklch(0.623 0.214 259.815);
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar: oklch(0.975 0.004 90);
+    --sidebar-foreground: oklch(0.18 0.005 60);
+    --sidebar-primary: oklch(0.22 0.01 60);
+    --sidebar-primary-foreground: oklch(0.985 0.003 90);
+    --sidebar-accent: oklch(0.95 0.006 85);
+    --sidebar-accent-foreground: oklch(0.22 0.01 60);
+    --sidebar-border: oklch(0.905 0.008 80);
+    --sidebar-ring: oklch(0.68 0.01 60);
 }
 
 .dark {
@@ -75,7 +83,8 @@
 }
 
 @theme inline {
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Inter Variable', sans-serif;
+    --font-mono: 'JetBrains Mono Variable', monospace;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -126,6 +135,43 @@
   html {
     @apply font-sans;
     }
+  code, kbd, pre, samp {
+    @apply font-mono;
+    }
+
+  /* All interactive elements get pointer cursor */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  a {
+    cursor: pointer;
+  }
+
+  /* Light mode: cards get subtle warm shadow to lift off the background */
+  html:not(.dark) [data-slot="card"] {
+    box-shadow: 0 1px 3px rgba(120, 100, 60, 0.06), 0 1px 2px rgba(120, 100, 60, 0.04);
+  }
+  html:not(.dark) [data-slot="card"]:hover {
+    box-shadow: 0 4px 12px rgba(120, 100, 60, 0.08), 0 2px 4px rgba(120, 100, 60, 0.04);
+  }
+
+  /* Light mode: navbar gets a subtle floating shadow instead of just a border */
+  html:not(.dark) header.sticky {
+    box-shadow: 0 1px 4px rgba(120, 100, 60, 0.06);
+  }
+
+  /* Light mode: buttons get subtle shadow for tactile depth */
+  html:not(.dark) [data-slot="button"][data-variant="default"] {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  html:not(.dark) [data-slot="button"][data-variant="default"]:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  html:not(.dark) [data-slot="button"][data-variant="outline"] {
+    box-shadow: 0 1px 2px rgba(120, 100, 60, 0.05);
+  }
+  html:not(.dark) [data-slot="button"][data-variant="outline"]:hover {
+    box-shadow: 0 2px 4px rgba(120, 100, 60, 0.08);
+  }
 }
 
 @keyframes shake {
@@ -157,7 +203,97 @@
   animation: slide-up-fade 0.3s ease-out;
 }
 
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-out-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 [data-sonner-toast] [data-close-button] {
   left: auto;
   right: 0;
 }
+
+/* Tooltip caret: clip to show only bottom-right triangle */
+.clip-caret {
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+}
+
+/* ── Code block: intentionally dark in both modes ── */
+
+/* Dark mode: near-black terminal look */
+.code-block {
+  background: oklch(0.13 0 0);
+  border: 1px solid oklch(0.25 0 0);
+}
+.code-block-header {
+  background: oklch(0.18 0 0);
+  border-bottom: 1px solid oklch(0.25 0 0);
+}
+
+/* Light mode: warm dark gray, recessed into the card */
+html:not(.dark) .code-block {
+  background: #2a2a30;
+  border: 2px solid oklch(0.82 0.006 70);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+html:not(.dark) .code-block-header {
+  background: #32323a;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Syntax highlighting — Tomorrow Night palette ── */
+.code-block .token.comment,
+.code-block .token.prolog,
+.code-block .token.doctype,
+.code-block .token.cdata { color: #969896; font-style: italic; }
+
+.code-block .token.keyword,
+.code-block .token.tag { color: #b294bb; }
+
+.code-block .token.string,
+.code-block .token.attr-value,
+.code-block .token.char { color: #b5bd68; }
+
+.code-block .token.number { color: #de935f; }
+
+.code-block .token.boolean { color: #de935f; }
+
+.code-block .token.function,
+.code-block .token.function-variable { color: #81a2be; }
+
+.code-block .token.class-name { color: #f0c674; }
+
+.code-block .token.builtin { color: #81a2be; }
+
+.code-block .token.operator { color: #8abeb7; }
+
+.code-block .token.punctuation { color: #c5c8c6; }
+
+.code-block .token.variable { color: #cc6666; }
+
+.code-block .token.property { color: #cc6666; }
+
+.code-block .token.constant { color: #de935f; }
+
+.code-block .token.decorator,
+.code-block .token.annotation,
+.code-block .token.attr-name { color: #f0c674; }
+
+.code-block .token.regex { color: #8abeb7; }
+
+.code-block .token.important { color: #de935f; font-weight: bold; }

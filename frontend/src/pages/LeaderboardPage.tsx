@@ -91,7 +91,7 @@ export function LeaderboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl space-y-1">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -104,10 +104,10 @@ export function LeaderboardPage() {
           <div className="mt-3 flex gap-1 rounded-lg bg-muted p-1">
             <button
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.97]",
                 tab === "trivia"
                   ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50",
               )}
               onClick={() => setTab("trivia")}
             >
@@ -116,10 +116,10 @@ export function LeaderboardPage() {
             </button>
             <button
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.97]",
                 tab === "code-output"
                   ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50",
               )}
               onClick={() => setTab("code-output")}
             >

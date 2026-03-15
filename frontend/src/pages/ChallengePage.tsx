@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { getChallengeByDate, getToday, submitAnswer } from "@/api/trivia";
+import { getArchive, getChallengeByDate, getToday, submitAnswer } from "@/api/trivia";
+import { ChallengeNav } from "@/components/ChallengeNav";
 import { toast } from "sonner";
 import { ApiRequestError } from "@/api/client";
 import type { Challenge, SubmitResponse } from "@/api/types";
@@ -34,6 +35,7 @@ import {
   Trophy,
   XCircle,
 } from "lucide-react";
+import { AttemptDots } from "@/components/AttemptDots";
 
 function generateShareText(challenge: Challenge): string {
   const pattern = Array.from({ length: challenge.attempts_used })
@@ -43,7 +45,7 @@ function generateShareText(challenge: Challenge): string {
     })
     .join("");
 
-  return `Daily Challenge ${challenge.scheduled_date} ${pattern} ${challenge.attempts_used}/${challenge.max_attempts}`;
+  return `BrainForge ${challenge.scheduled_date} ${pattern} ${challenge.attempts_used}/${challenge.max_attempts}`;
 }
 
 export function ChallengePage() {
@@ -61,6 +63,7 @@ export function ChallengePage() {
   const [answerError, setAnswerError] = useState("");
   const [copied, setCopied] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
+  const [guesses, setGuesses] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchChallenge = useCallback(async () => {
@@ -71,9 +74,11 @@ export function ChallengePage() {
     setHint(null);
     setHintVisible(false);
     setAnswer("");
+    setGuesses([]);
     try {
       const data = date ? await getChallengeByDate(date) : await getToday();
       setChallenge(data);
+      setGuesses(data.previous_guesses ?? []);
       if (data.attempts_used >= 3) {
         setHint(data.hint);
       }
@@ -123,8 +128,10 @@ export function ChallengePage() {
     setLastResult(null);
 
     try {
+      const trimmed = answer.trim();
+      setGuesses((prev) => [...prev, trimmed]);
       const result = await submitAnswer({
-        answer: answer.trim(),
+        answer: trimmed,
         challenge_id: challenge.id,
       });
       setLastResult(result);
@@ -196,6 +203,13 @@ export function ChallengePage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      {date && (
+        <ChallengeNav
+          currentDate={challenge.scheduled_date}
+          basePath="/trivia"
+          getArchive={getArchive}
+        />
+      )}
       <Card>
         {/* Header */}
         <CardHeader>
@@ -227,28 +241,13 @@ export function ChallengePage() {
 
           {/* Attempt indicators */}
           <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-2">
-              {Array.from({ length: challenge.max_attempts }).map((_, i) => {
-                const used = i < challenge.attempts_used;
-                const isWinningAttempt =
-                  challenge.is_solved && i === challenge.attempts_used - 1;
-
-                return (
-                  <span
-                    key={i}
-                    className={cn(
-                      "flex size-4 items-center justify-center rounded-full transition-all duration-300",
-                      poppedDot === i && "animate-pop",
-                      used
-                        ? isWinningAttempt
-                          ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
-                          : "bg-destructive shadow-[0_0_6px_rgba(239,68,68,0.3)]"
-                        : "bg-muted ring-1 ring-border",
-                    )}
-                  />
-                );
-              })}
-            </div>
+            <AttemptDots
+              maxAttempts={challenge.max_attempts}
+              attemptsUsed={challenge.attempts_used}
+              isSolved={challenge.is_solved}
+              guesses={guesses}
+              poppedDot={poppedDot}
+            />
             <p className="text-xs text-muted-foreground">
               {done
                 ? challenge.is_solved
@@ -293,10 +292,10 @@ export function ChallengePage() {
                 Solved in {challenge.attempts_used} attempt
                 {challenge.attempts_used === 1 ? "" : "s"}
               </p>
-              {user && (
+              {!date && user && user.trivia_stats.current_streak > 0 && (
                 <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-medium">
                   <Flame className="size-4 text-orange-500" />
-                  {user.stats.current_streak} day streak
+                  {user.trivia_stats.current_streak} day streak
                 </div>
               )}
             </div>
@@ -414,17 +413,17 @@ export function ChallengePage() {
           <CardFooter>
             <div className="flex w-full items-center justify-around text-center text-sm">
               <div>
-                <p className="text-lg font-bold">{user.stats.total_solved}</p>
+                <p className="text-lg font-bold">{user.trivia_stats.total_solved}</p>
                 <p className="text-xs text-muted-foreground">Solved</p>
               </div>
               <Separator orientation="vertical" className="h-8" />
               <div>
-                <p className="text-lg font-bold">{user.stats.current_streak}</p>
+                <p className="text-lg font-bold">{user.trivia_stats.current_streak}</p>
                 <p className="text-xs text-muted-foreground">Streak</p>
               </div>
               <Separator orientation="vertical" className="h-8" />
               <div>
-                <p className="text-lg font-bold">{user.stats.longest_streak}</p>
+                <p className="text-lg font-bold">{user.trivia_stats.longest_streak}</p>
                 <p className="text-xs text-muted-foreground">Best</p>
               </div>
             </div>

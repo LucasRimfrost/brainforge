@@ -170,12 +170,18 @@ async fn me_after_register_returns_profile_with_stats() {
     assert_eq!(body["username"], "testuser");
     assert_eq!(body["email"], "test@example.com");
 
-    // Fresh user should have zeroed stats
-    let stats = &body["stats"];
-    assert_eq!(stats["current_streak"], 0);
-    assert_eq!(stats["longest_streak"], 0);
-    assert_eq!(stats["total_solved"], 0);
-    assert_eq!(stats["total_attempts"], 0);
+    // Fresh user should have zeroed stats for both games
+    let trivia = &body["trivia_stats"];
+    assert_eq!(trivia["current_streak"], 0);
+    assert_eq!(trivia["longest_streak"], 0);
+    assert_eq!(trivia["total_solved"], 0);
+    assert_eq!(trivia["total_attempts"], 0);
+
+    let code_output = &body["code_output_stats"];
+    assert_eq!(code_output["current_streak"], 0);
+    assert_eq!(code_output["longest_streak"], 0);
+    assert_eq!(code_output["total_solved"], 0);
+    assert_eq!(code_output["total_attempts"], 0);
 }
 
 // ── Logout ──────────────────────────────────────────────────────────────────

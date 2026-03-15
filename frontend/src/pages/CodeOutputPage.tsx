@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -18,10 +19,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
+  getArchive,
   getChallengeByDate,
   getToday,
   submitAnswer,
 } from "@/api/code-output";
+import { ChallengeNav } from "@/components/ChallengeNav";
 import { toast } from "sonner";
 import { ApiRequestError } from "@/api/client";
 import type { CodeOutputChallenge, SubmitResponse } from "@/api/types";
@@ -38,6 +41,11 @@ import {
   Terminal,
   XCircle,
 } from "lucide-react";
+import { AttemptDots } from "@/components/AttemptDots";
+import Prism from "prismjs";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-rust";
 
 function generateShareText(challenge: CodeOutputChallenge): string {
   const pattern = Array.from({ length: challenge.attempts_used })
@@ -66,7 +74,21 @@ export function CodeOutputPage() {
   const [answerError, setAnswerError] = useState("");
   const [copied, setCopied] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
+  const [guesses, setGuesses] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const highlightedLines = useMemo(() => {
+    if (!challenge) return [];
+    const langMap: Record<string, string> = {
+      python: "python",
+      javascript: "javascript",
+      rust: "rust",
+    };
+    const lang = langMap[challenge.language] ?? "javascript";
+    const grammar = Prism.languages[lang];
+    if (!grammar) return challenge.code_snippet.split("\n");
+    return Prism.highlight(challenge.code_snippet, grammar, lang).split("\n");
+  }, [challenge]);
 
   const fetchChallenge = useCallback(async () => {
     setLoading(true);
@@ -76,9 +98,11 @@ export function CodeOutputPage() {
     setHint(null);
     setHintVisible(false);
     setAnswer("");
+    setGuesses([]);
     try {
       const data = date ? await getChallengeByDate(date) : await getToday();
       setChallenge(data);
+      setGuesses(data.previous_guesses ?? []);
       if (data.attempts_used >= 2) {
         setHint(data.hint);
       }
@@ -131,8 +155,10 @@ export function CodeOutputPage() {
     setLastResult(null);
 
     try {
+      const trimmed = answer.trim();
+      setGuesses((prev) => [...prev, trimmed]);
       const result = await submitAnswer({
-        answer: answer.trim(),
+        answer: trimmed,
         challenge_id: challenge.id,
       });
       setLastResult(result);
@@ -201,6 +227,13 @@ export function CodeOutputPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      {date && (
+        <ChallengeNav
+          currentDate={challenge.scheduled_date}
+          basePath="/code-output"
+          getArchive={getArchive}
+        />
+      )}
       <Card>
         {/* Header */}
         <CardHeader>
@@ -227,26 +260,27 @@ export function CodeOutputPage() {
           <p className="leading-relaxed">{challenge.description}</p>
 
           {/* Code snippet */}
-          <div className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950">
-            <div className="flex items-center border-b border-neutral-800 bg-neutral-900 px-4 py-2">
+          <div className="code-block overflow-hidden rounded-2xl">
+            <div className="code-block-header flex items-center px-4 py-2">
               <Badge
                 variant="outline"
-                className="border-neutral-700 bg-neutral-800 text-xs text-neutral-300"
+                className="border-neutral-600 bg-neutral-700 text-xs text-neutral-300"
               >
                 {getLanguageLabel(challenge.language)}
               </Badge>
             </div>
             <div className="overflow-x-auto p-4">
-              <pre className="text-sm leading-relaxed">
+              <pre className="text-sm leading-loose">
                 <code>
-                  {challenge.code_snippet.split("\n").map((line, i) => (
+                  {highlightedLines.map((line, i) => (
                     <div key={i} className="flex">
                       <span className="mr-6 inline-block w-6 select-none text-right text-neutral-600">
                         {i + 1}
                       </span>
-                      <span className="text-neutral-200">
-                        {line || " "}
-                      </span>
+                      <span
+                        className="text-neutral-200"
+                        dangerouslySetInnerHTML={{ __html: line || " " }}
+                      />
                     </div>
                   ))}
                 </code>
@@ -254,100 +288,10 @@ export function CodeOutputPage() {
             </div>
           </div>
 
-          <Separator />
-
-          {/* Attempt indicators */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-2">
-              {Array.from({ length: challenge.max_attempts }).map((_, i) => {
-                const used = i < challenge.attempts_used;
-                const isWinningAttempt =
-                  challenge.is_solved && i === challenge.attempts_used - 1;
-
-                return (
-                  <span
-                    key={i}
-                    className={cn(
-                      "flex size-4 items-center justify-center rounded-full transition-all duration-300",
-                      poppedDot === i && "animate-pop",
-                      used
-                        ? isWinningAttempt
-                          ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
-                          : "bg-destructive shadow-[0_0_6px_rgba(239,68,68,0.3)]"
-                        : "bg-muted ring-1 ring-border",
-                    )}
-                  />
-                );
-              })}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {done
-                ? challenge.is_solved
-                  ? `Solved in ${challenge.attempts_used} attempt${challenge.attempts_used === 1 ? "" : "s"}`
-                  : "No attempts remaining"
-                : `${challenge.max_attempts - challenge.attempts_used} attempt${challenge.max_attempts - challenge.attempts_used === 1 ? "" : "s"} remaining`}
-            </p>
-          </div>
-
-          {/* Hint status */}
-          {!done && !hint && (
-            <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-              <Lightbulb className="size-3.5" />
-              Hint unlocks after 2 failed attempts
-            </p>
-          )}
-
-          {/* Feedback after submission */}
-          {lastResult && !lastResult.is_correct && !done && (
-            <div
-              key={lastResult.attempt_number}
-              className={cn(
-                "animate-slide-up-fade flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm font-medium",
-                shaking && "animate-shake",
-                "bg-destructive/10 text-destructive",
-              )}
-            >
-              <XCircle className="size-4 shrink-0" />
-              Not quite. {lastResult.attempts_remaining} attempt
-              {lastResult.attempts_remaining === 1 ? "" : "s"} left.
-            </div>
-          )}
-
-          {/* End state: solved */}
-          {challenge.is_solved && (
-            <div className="animate-slide-up-fade rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-5 text-center">
-              <CheckCircle className="mx-auto mb-2 size-8 text-green-500" />
-              <p className="text-lg font-semibold text-green-700 dark:text-green-400">
-                Correct!
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Solved in {challenge.attempts_used} attempt
-                {challenge.attempts_used === 1 ? "" : "s"}
-              </p>
-              {user && (
-                <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-medium">
-                  <Flame className="size-4 text-orange-500" />
-                  {user.stats.current_streak} day streak
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* End state: exhausted */}
-          {exhausted && (
-            <div className="animate-slide-up-fade rounded-lg border border-muted bg-muted/50 px-4 py-5 text-center">
-              <XCircle className="mx-auto mb-2 size-8 text-muted-foreground" />
-              <p className="text-lg font-semibold">Out of attempts</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Better luck tomorrow!
-              </p>
-            </div>
-          )}
-
-          {/* Correct answer reveal */}
+          {/* Expected Output — directly below code when revealed */}
           {challenge.correct_answer && (
-            <div className="animate-slide-up-fade overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950">
-              <div className="border-b border-neutral-800 bg-neutral-900 px-4 py-2">
+            <div className="code-block animate-slide-up-fade -mt-3 overflow-hidden rounded-2xl">
+              <div className="code-block-header px-4 py-2">
                 <p className="text-xs font-medium text-neutral-400">
                   Expected Output
                 </p>
@@ -358,104 +302,192 @@ export function CodeOutputPage() {
             </div>
           )}
 
-          {/* Share result button */}
-          {done && (
-            <div className="flex justify-center">
-              <Button variant="outline" size="sm" onClick={handleShare}>
-                {copied ? (
-                  <ClipboardCheck className="mr-2 size-4" />
-                ) : (
-                  <Share2 className="mr-2 size-4" />
-                )}
-                {copied ? "Copied!" : "Share Result"}
-              </Button>
-            </div>
-          )}
-
-          {/* Inline hint reveal */}
-          {!done && hint && hintVisible && (
-            <div className="animate-slide-up-fade flex items-start gap-2.5 rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-sm">
-              <Lightbulb className="mt-0.5 size-4 shrink-0 text-yellow-500" />
-              <div>
-                <p className="mb-0.5 text-xs font-medium text-yellow-700 dark:text-yellow-400">
-                  Hint
-                </p>
-                <p className="text-foreground">{hint}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Input form */}
-          {!done && (
-            <form noValidate onSubmit={handleSubmit} className="grid gap-2">
-              <div className="flex items-center gap-2">
-                <Input
-                  ref={inputRef}
-                  value={answer}
-                  onChange={(e) => {
-                    setAnswer(e.target.value);
-                    setAnswerError("");
-                  }}
-                  placeholder="Type the expected output..."
-                  disabled={submitting}
-                  autoComplete="off"
-                  className="flex-1 font-mono"
-                  aria-invalid={!!answerError || undefined}
-                />
-                {hint && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="lg"
-                    onClick={() => setHintVisible((v) => !v)}
-                    className={cn(
-                      "shrink-0",
-                      hintVisible
-                        ? "text-yellow-500"
-                        : "text-muted-foreground hover:text-yellow-500",
-                    )}
-                    aria-label={hintVisible ? "Hide hint" : "Show hint"}
-                  >
-                    <Lightbulb className="size-4" />
-                  </Button>
-                )}
-                <Button type="submit" disabled={submitting} size="lg">
-                  {submitting ? (
-                    <div className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
-                  ) : (
-                    <Send className="size-4" />
+          {done ? (
+            <>
+              {/* Result status with attempt dots */}
+              {challenge.is_solved ? (
+                <div className="animate-slide-up-fade rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-5 text-center">
+                  <CheckCircle className="mx-auto mb-2 size-8 text-green-500" />
+                  <p className="text-lg font-semibold text-green-700 dark:text-green-400">
+                    Correct!
+                  </p>
+                  <div className="mt-2 flex justify-center">
+                    <AttemptDots
+                      maxAttempts={challenge.max_attempts}
+                      attemptsUsed={challenge.attempts_used}
+                      isSolved={challenge.is_solved}
+                      guesses={guesses}
+                      size="sm"
+                    />
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Solved in {challenge.attempts_used} attempt
+                    {challenge.attempts_used === 1 ? "" : "s"}
+                  </p>
+                  {!date && user && user.code_output_stats.current_streak > 0 && (
+                    <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-medium">
+                      <Flame className="size-4 text-orange-500" />
+                      {user.code_output_stats.current_streak} day streak
+                    </div>
                   )}
+                </div>
+              ) : (
+                <div className="animate-slide-up-fade rounded-lg border border-muted bg-muted/50 px-4 py-5 text-center">
+                  <XCircle className="mx-auto mb-2 size-8 text-muted-foreground" />
+                  <p className="text-lg font-semibold">Out of attempts</p>
+                  <div className="mt-2 flex justify-center">
+                    <AttemptDots
+                      maxAttempts={challenge.max_attempts}
+                      attemptsUsed={challenge.attempts_used}
+                      isSolved={false}
+                      guesses={guesses}
+                      size="sm"
+                    />
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Better luck tomorrow!
+                  </p>
+                </div>
+              )}
+
+              {/* Share result button */}
+              <div className="flex justify-center">
+                <Button variant="outline" size="sm" onClick={handleShare}>
+                  {copied ? (
+                    <ClipboardCheck className="mr-2 size-4" />
+                  ) : (
+                    <Share2 className="mr-2 size-4" />
+                  )}
+                  {copied ? "Copied!" : "Share Result"}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Output is case-sensitive
-              </p>
-              {answerError && (
-                <p className="text-sm text-destructive">{answerError}</p>
+            </>
+          ) : (
+            <>
+              <Separator />
+
+              {/* Attempt indicators (in-progress) */}
+              <div className="flex flex-col items-center gap-3">
+                <AttemptDots
+                  maxAttempts={challenge.max_attempts}
+                  attemptsUsed={challenge.attempts_used}
+                  isSolved={false}
+                  guesses={guesses}
+                  poppedDot={poppedDot}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {`${challenge.max_attempts - challenge.attempts_used} attempt${challenge.max_attempts - challenge.attempts_used === 1 ? "" : "s"} remaining`}
+                </p>
+              </div>
+
+              {/* Hint status */}
+              {!hint && (
+                <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                  <Lightbulb className="size-3.5" />
+                  Hint unlocks after 2 failed attempts
+                </p>
               )}
-            </form>
+
+              {/* Feedback after submission */}
+              {lastResult && !lastResult.is_correct && (
+                <div
+                  key={lastResult.attempt_number}
+                  className={cn(
+                    "animate-slide-up-fade flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm font-medium",
+                    shaking && "animate-shake",
+                    "bg-destructive/10 text-destructive",
+                  )}
+                >
+                  <XCircle className="size-4 shrink-0" />
+                  Not quite. {lastResult.attempts_remaining} attempt
+                  {lastResult.attempts_remaining === 1 ? "" : "s"} left.
+                </div>
+              )}
+
+              {/* Inline hint reveal */}
+              {hint && hintVisible && (
+                <div className="animate-slide-up-fade flex items-start gap-2.5 rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-sm">
+                  <Lightbulb className="mt-0.5 size-4 shrink-0 text-yellow-500" />
+                  <div>
+                    <p className="mb-0.5 text-xs font-medium text-yellow-700 dark:text-yellow-400">
+                      Hint
+                    </p>
+                    <p className="text-foreground">{hint}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Input form */}
+              <form noValidate onSubmit={handleSubmit} className="grid gap-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={inputRef}
+                    value={answer}
+                    onChange={(e) => {
+                      setAnswer(e.target.value);
+                      setAnswerError("");
+                    }}
+                    placeholder="Type the expected output..."
+                    disabled={submitting}
+                    autoComplete="off"
+                    className="flex-1 font-mono"
+                    aria-invalid={!!answerError || undefined}
+                  />
+                  {hint && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="lg"
+                      onClick={() => setHintVisible((v) => !v)}
+                      className={cn(
+                        "shrink-0",
+                        hintVisible
+                          ? "text-yellow-500"
+                          : "text-muted-foreground hover:text-yellow-500",
+                      )}
+                      aria-label={hintVisible ? "Hide hint" : "Show hint"}
+                    >
+                      <Lightbulb className="size-4" />
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={submitting} size="lg">
+                    {submitting ? (
+                      <div className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                    ) : (
+                      <Send className="size-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Output is case-sensitive
+                </p>
+                {answerError && (
+                  <p className="text-sm text-destructive">{answerError}</p>
+                )}
+              </form>
+            </>
           )}
         </CardContent>
 
         {/* Stats footer when done */}
         {done && user && (
-          <CardFooter>
+          <CardFooter className="border-t">
             <div className="flex w-full items-center justify-around text-center text-sm">
               <div>
-                <p className="text-lg font-bold">{user.stats.total_solved}</p>
+                <p className="text-lg font-bold">{user.code_output_stats.total_solved}</p>
                 <p className="text-xs text-muted-foreground">Solved</p>
               </div>
               <Separator orientation="vertical" className="h-8" />
               <div>
                 <p className="text-lg font-bold">
-                  {user.stats.current_streak}
+                  {user.code_output_stats.current_streak}
                 </p>
                 <p className="text-xs text-muted-foreground">Streak</p>
               </div>
               <Separator orientation="vertical" className="h-8" />
               <div>
                 <p className="text-lg font-bold">
-                  {user.stats.longest_streak}
+                  {user.code_output_stats.longest_streak}
                 </p>
                 <p className="text-xs text-muted-foreground">Best</p>
               </div>

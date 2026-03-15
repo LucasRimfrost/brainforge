@@ -397,7 +397,7 @@ async fn solving_today_updates_user_stats() {
         .unwrap();
 
     let body: serde_json::Value = resp.json().await.unwrap();
-    let stats = &body["stats"];
+    let stats = &body["trivia_stats"];
     assert_eq!(stats["total_solved"], 1);
     assert_eq!(stats["current_streak"], 1);
     assert_eq!(stats["longest_streak"], 1);
@@ -430,8 +430,8 @@ async fn wrong_attempts_increment_total_attempts() {
         .unwrap();
 
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["stats"]["total_attempts"], 2);
-    assert_eq!(body["stats"]["total_solved"], 0);
+    assert_eq!(body["trivia_stats"]["total_attempts"], 2);
+    assert_eq!(body["trivia_stats"]["total_solved"], 0);
 }
 
 // ── Challenge by date ───────────────────────────────────────────────────────

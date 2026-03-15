@@ -69,7 +69,7 @@ export function LoginPage() {
             <Zap className="size-5 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Log in to today's challenge</CardDescription>
+          <CardDescription>Log in to BrainForge</CardDescription>
         </CardHeader>
         <CardContent>
           <form noValidate onSubmit={handleSubmit} className="grid gap-4">
@@ -93,7 +93,7 @@ export function LoginPage() {
                 <Label htmlFor="password">Password</Label>
                 <Link
                   to="/forgot-password"
-                  className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                  className="rounded-sm text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   Forgot password?
                 </Link>
@@ -116,7 +116,7 @@ export function LoginPage() {
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link to="/register" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/register" className="rounded-sm text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
               Sign up
             </Link>
           </p>

@@ -7,7 +7,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use db::queries::{
-    create_refresh_token, find_refresh_token_by_hash, find_trivia_stats,
+    create_refresh_token, find_code_output_stats, find_refresh_token_by_hash, find_trivia_stats,
     revoke_all_user_refresh_tokens, revoke_refresh_token,
 };
 use serde::{Deserialize, Serialize};
@@ -96,7 +96,8 @@ pub struct MeResponse {
     pub id: String,
     pub username: String,
     pub email: String,
-    pub stats: StatsResponse,
+    pub trivia_stats: StatsResponse,
+    pub code_output_stats: StatsResponse,
 }
 
 #[derive(Serialize, Default)]
@@ -400,7 +401,17 @@ pub async fn me(
             AppError::Unauthorized
         })?;
 
-    let stats = match find_trivia_stats(&state.pool, user_id).await? {
+    let trivia_stats = match find_trivia_stats(&state.pool, user_id).await? {
+        Some(s) => StatsResponse {
+            current_streak: s.current_streak,
+            longest_streak: s.longest_streak,
+            total_solved: s.total_solved,
+            total_attempts: s.total_attempts,
+        },
+        None => StatsResponse::default(),
+    };
+
+    let code_output_stats = match find_code_output_stats(&state.pool, user_id).await? {
         Some(s) => StatsResponse {
             current_streak: s.current_streak,
             longest_streak: s.longest_streak,
@@ -418,7 +429,8 @@ pub async fn me(
             id: user.id.to_string(),
             username: user.username,
             email: user.email,
-            stats,
+            trivia_stats,
+            code_output_stats,
         }),
     ))
 }

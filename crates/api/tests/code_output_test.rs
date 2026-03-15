@@ -400,8 +400,8 @@ async fn solving_updates_code_output_stats_not_trivia() {
         .await
         .unwrap();
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["stats"]["total_solved"], 0);
-    assert_eq!(body["stats"]["total_attempts"], 0);
+    assert_eq!(body["trivia_stats"]["total_solved"], 0);
+    assert_eq!(body["trivia_stats"]["total_attempts"], 0);
 }
 
 // ── By date ─────────────────────────────────────────────────────────────────
