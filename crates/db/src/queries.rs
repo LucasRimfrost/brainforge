@@ -1,3 +1,10 @@
+//! Database query functions using compile-time checked [`sqlx`] macros.
+//!
+//! Every public function in this module takes a [`PgPool`] reference and
+//! returns an [`AppResult`]. Database errors are automatically converted
+//! into [`AppError`] variants (with unique-violation mapped to
+//! [`AppError::Conflict`]).
+
 use shared::error::{AppError, AppResult};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -9,6 +16,11 @@ use crate::models::{
 
 // ── Users ───────────────────────────────────────────────────────────────────
 
+/// Inserts a new user and returns the created row.
+///
+/// # Errors
+///
+/// Returns [`AppError::Conflict`] if the email or username already exists.
 #[tracing::instrument(skip(pool, password_hash), fields(email = %email))]
 pub async fn create_user(
     pool: &PgPool,
@@ -35,6 +47,7 @@ pub async fn create_user(
     Ok(user)
 }
 
+/// Looks up a user by email address.
 #[tracing::instrument(skip(pool))]
 pub async fn find_user_by_email(pool: &PgPool, email: &str) -> AppResult<Option<User>> {
     let result = sqlx::query_as!(
@@ -54,6 +67,7 @@ pub async fn find_user_by_email(pool: &PgPool, email: &str) -> AppResult<Option<
     Ok(result)
 }
 
+/// Looks up a user by primary key.
 #[tracing::instrument(skip(pool))]
 pub async fn find_user_by_id(pool: &PgPool, id: Uuid) -> AppResult<Option<User>> {
     let result = sqlx::query_as!(
@@ -73,6 +87,11 @@ pub async fn find_user_by_id(pool: &PgPool, id: Uuid) -> AppResult<Option<User>>
     Ok(result)
 }
 
+/// Updates a user's display name and returns the modified row.
+///
+/// # Errors
+///
+/// Returns [`AppError::Conflict`] if the new username is already taken.
 #[tracing::instrument(skip(pool))]
 pub async fn update_username(pool: &PgPool, user_id: Uuid, username: &str) -> AppResult<User> {
     let user = sqlx::query_as!(
@@ -94,6 +113,11 @@ pub async fn update_username(pool: &PgPool, user_id: Uuid, username: &str) -> Ap
     Ok(user)
 }
 
+/// Updates a user's email address and returns the modified row.
+///
+/// # Errors
+///
+/// Returns [`AppError::Conflict`] if the new email is already registered.
 #[tracing::instrument(skip(pool))]
 pub async fn update_email(pool: &PgPool, user_id: Uuid, email: &str) -> AppResult<User> {
     let user = sqlx::query_as!(
@@ -117,6 +141,7 @@ pub async fn update_email(pool: &PgPool, user_id: Uuid, email: &str) -> AppResul
 
 // ── Games registry ──────────────────────────────────────────────────────────────
 
+/// Returns all games marked as active, ordered by `sort_order`.
 #[tracing::instrument(skip(pool))]
 pub async fn find_active_games(pool: &PgPool) -> AppResult<Vec<crate::models::Game>> {
     let results = sqlx::query_as!(
@@ -136,6 +161,7 @@ pub async fn find_active_games(pool: &PgPool) -> AppResult<Vec<crate::models::Ga
     Ok(results)
 }
 
+/// Finds the trivia challenge scheduled for a given date.
 #[tracing::instrument(skip(pool))]
 pub async fn find_trivia_challenge_by_date(
     pool: &PgPool,
@@ -165,6 +191,7 @@ pub async fn find_trivia_challenge_by_date(
     Ok(result)
 }
 
+/// Finds a trivia challenge by its primary key.
 #[tracing::instrument(skip(pool))]
 pub async fn find_trivia_challenge_by_id(
     pool: &PgPool,
@@ -192,6 +219,7 @@ pub async fn find_trivia_challenge_by_id(
 
 // ── Submissions ─────────────────────────────────────────────────────────────
 
+/// Returns all trivia submissions by a user for a specific challenge.
 #[tracing::instrument(skip(pool))]
 pub async fn find_trivia_submissions_by_user_and_challenge(
     pool: &PgPool,
@@ -217,6 +245,7 @@ pub async fn find_trivia_submissions_by_user_and_challenge(
     Ok(results)
 }
 
+/// Records a new trivia submission and returns the inserted row.
 #[tracing::instrument(skip(pool, answer))]
 pub async fn create_trivia_submission(
     pool: &PgPool,
@@ -258,6 +287,10 @@ pub async fn create_trivia_submission(
 
 // ── User history ────────────────────────────────────────────────────────────
 
+/// Returns a user's best attempt per trivia challenge, most recent first.
+///
+/// Uses `DISTINCT ON` to pick the best submission for each challenge
+/// (correct answers first, then highest attempt number).
 #[tracing::instrument(skip(pool))]
 pub async fn find_trivia_challenge_history(
     pool: &PgPool,
@@ -294,6 +327,11 @@ pub async fn find_trivia_challenge_history(
 
 // ── User stats ──────────────────────────────────────────────────────────────
 
+/// Upserts the user's trivia stats after a correct solve.
+///
+/// Streak logic: if the user solved yesterday's challenge, the streak is
+/// extended; if they solved today's already, stats are unchanged; otherwise
+/// the streak resets to 1.
 #[tracing::instrument(skip(pool))]
 pub async fn upsert_trivia_stats_on_solve(
     pool: &PgPool,
@@ -335,6 +373,7 @@ pub async fn upsert_trivia_stats_on_solve(
     Ok(())
 }
 
+/// Increments the user's lifetime trivia attempt counter (upserts if no row exists).
 #[tracing::instrument(skip(pool))]
 pub async fn increment_trivia_attempts(pool: &PgPool, user_id: Uuid) -> AppResult<()> {
     sqlx::query!(
@@ -354,6 +393,7 @@ pub async fn increment_trivia_attempts(pool: &PgPool, user_id: Uuid) -> AppResul
     Ok(())
 }
 
+/// Returns the trivia stats row for a user, if one exists.
 #[tracing::instrument(skip(pool))]
 pub async fn find_trivia_stats(pool: &PgPool, user_id: Uuid) -> AppResult<Option<TriviaStats>> {
     let result = sqlx::query_as!(
@@ -376,6 +416,7 @@ pub async fn find_trivia_stats(pool: &PgPool, user_id: Uuid) -> AppResult<Option
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────
 
+/// Returns the top trivia players ranked by current streak, then total solved.
 #[tracing::instrument(skip(pool))]
 pub async fn find_trivia_leaderboard(pool: &PgPool, limit: i64) -> AppResult<Vec<LeaderboardRow>> {
     let results = sqlx::query_as!(
@@ -399,6 +440,8 @@ pub async fn find_trivia_leaderboard(pool: &PgPool, limit: i64) -> AppResult<Vec
 
 // ── Archive ─────────────────────────────────────────────────────────────────
 
+/// Returns all trivia challenges scheduled before `today`, annotated with the
+/// user's solve status and attempt count.
 #[tracing::instrument(skip(pool))]
 pub async fn find_trivia_past_challenges(
     pool: &PgPool,
@@ -432,6 +475,7 @@ pub async fn find_trivia_past_challenges(
 
 // ── Refresh tokens ──────────────────────────────────────────────────────
 
+/// Stores a hashed refresh token in the database with the given expiration.
 #[tracing::instrument(skip(pool, token_hash))]
 pub async fn create_refresh_token(
     pool: &PgPool,
@@ -456,6 +500,7 @@ pub async fn create_refresh_token(
     Ok(())
 }
 
+/// Looks up a refresh token row by its SHA-256 hash.
 #[tracing::instrument(skip(pool, token_hash))]
 pub async fn find_refresh_token_by_hash(
     pool: &PgPool,
@@ -478,6 +523,7 @@ pub async fn find_refresh_token_by_hash(
     Ok(result)
 }
 
+/// Marks a single refresh token as revoked by setting `revoked_at`.
 #[tracing::instrument(skip(pool))]
 pub async fn revoke_refresh_token(pool: &PgPool, token_id: Uuid) -> AppResult<()> {
     sqlx::query!(
@@ -496,6 +542,8 @@ pub async fn revoke_refresh_token(pool: &PgPool, token_id: Uuid) -> AppResult<()
     Ok(())
 }
 
+/// Revokes every active refresh token for a user (e.g. on password change or
+/// detected token reuse).
 #[tracing::instrument(skip(pool))]
 pub async fn revoke_all_user_refresh_tokens(pool: &PgPool, user_id: Uuid) -> AppResult<()> {
     let result = sqlx::query!(
@@ -516,6 +564,8 @@ pub async fn revoke_all_user_refresh_tokens(pool: &PgPool, user_id: Uuid) -> App
 
 // ── Password reset tokens ───────────────────────────────────────────────
 
+/// Creates a password-reset token, revoking any previous unused tokens for the
+/// same user first.
 #[tracing::instrument(skip(pool, token_hash))]
 pub async fn create_password_reset_token(
     pool: &PgPool,
@@ -553,6 +603,7 @@ pub async fn create_password_reset_token(
     Ok(())
 }
 
+/// Looks up a password-reset token by its SHA-256 hash.
 #[tracing::instrument(skip(pool, token_hash))]
 pub async fn find_password_reset_token_by_hash(
     pool: &PgPool,
@@ -575,6 +626,7 @@ pub async fn find_password_reset_token_by_hash(
     Ok(result)
 }
 
+/// Marks a password-reset token as consumed by setting `used_at`.
 #[tracing::instrument(skip(pool))]
 pub async fn mark_password_reset_token_used(pool: &PgPool, token_id: Uuid) -> AppResult<()> {
     sqlx::query!(
@@ -593,6 +645,7 @@ pub async fn mark_password_reset_token_used(pool: &PgPool, token_id: Uuid) -> Ap
     Ok(())
 }
 
+/// Replaces a user's password hash.
 #[tracing::instrument(skip(pool, password_hash))]
 pub async fn update_user_password(
     pool: &PgPool,
@@ -618,6 +671,7 @@ pub async fn update_user_password(
 
 // ── Code Output challenges ──────────────────────────────────────────────────
 
+/// Finds the code-output challenge scheduled for a given date.
 #[tracing::instrument(skip(pool))]
 pub async fn find_code_output_challenge_by_date(
     pool: &PgPool,
@@ -642,6 +696,7 @@ pub async fn find_code_output_challenge_by_date(
     Ok(result)
 }
 
+/// Finds a code-output challenge by its primary key.
 #[tracing::instrument(skip(pool))]
 pub async fn find_code_output_challenge_by_id(
     pool: &PgPool,
@@ -671,6 +726,7 @@ pub async fn find_code_output_challenge_by_id(
 
 // ── Code Output submissions ─────────────────────────────────────────────────
 
+/// Returns all code-output submissions by a user for a specific challenge.
 #[tracing::instrument(skip(pool))]
 pub async fn find_code_output_submissions_by_user_and_challenge(
     pool: &PgPool,
@@ -696,6 +752,7 @@ pub async fn find_code_output_submissions_by_user_and_challenge(
     Ok(results)
 }
 
+/// Records a new code-output submission and returns the inserted row.
 #[tracing::instrument(skip(pool, answer))]
 pub async fn create_code_output_submission(
     pool: &PgPool,
@@ -737,6 +794,7 @@ pub async fn create_code_output_submission(
 
 // ── Code Output history ─────────────────────────────────────────────────────
 
+/// Returns a user's best attempt per code-output challenge, most recent first.
 #[tracing::instrument(skip(pool))]
 pub async fn find_code_output_challenge_history(
     pool: &PgPool,
@@ -773,6 +831,9 @@ pub async fn find_code_output_challenge_history(
 
 // ── Code Output stats ───────────────────────────────────────────────────────
 
+/// Upserts the user's code-output stats after a correct solve.
+///
+/// Streak logic mirrors [`upsert_trivia_stats_on_solve`].
 #[tracing::instrument(skip(pool))]
 pub async fn upsert_code_output_stats_on_solve(
     pool: &PgPool,
@@ -814,6 +875,7 @@ pub async fn upsert_code_output_stats_on_solve(
     Ok(())
 }
 
+/// Increments the user's lifetime code-output attempt counter.
 #[tracing::instrument(skip(pool))]
 pub async fn increment_code_output_attempts(pool: &PgPool, user_id: Uuid) -> AppResult<()> {
     sqlx::query!(
@@ -833,6 +895,7 @@ pub async fn increment_code_output_attempts(pool: &PgPool, user_id: Uuid) -> App
     Ok(())
 }
 
+/// Returns the code-output stats row for a user, if one exists.
 #[tracing::instrument(skip(pool))]
 pub async fn find_code_output_stats(
     pool: &PgPool,
@@ -858,6 +921,7 @@ pub async fn find_code_output_stats(
 
 // ── Code Output leaderboard ─────────────────────────────────────────────────
 
+/// Returns the top code-output players ranked by current streak, then total solved.
 #[tracing::instrument(skip(pool))]
 pub async fn find_code_output_leaderboard(
     pool: &PgPool,
@@ -884,6 +948,8 @@ pub async fn find_code_output_leaderboard(
 
 // ── Code Output archive ─────────────────────────────────────────────────────
 
+/// Returns all code-output challenges scheduled before `today`, annotated with
+/// the user's solve status and attempt count.
 #[tracing::instrument(skip(pool))]
 pub async fn find_code_output_past_challenges(
     pool: &PgPool,

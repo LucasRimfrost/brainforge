@@ -5,14 +5,24 @@ use shared::error::{AppError, AppResult};
 
 const ISSUER: &str = "daily-challenge";
 
+/// JWT claims payload embedded in every access token.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claims {
-    pub sub: String, // user id
-    pub exp: usize,  // expiration
-    pub iat: usize,  // issued at
-    pub iss: String, // issuer
+    /// Subject — the user's UUID.
+    pub sub: String,
+    /// Expiration time (UTC epoch seconds).
+    pub exp: usize,
+    /// Issued-at time (UTC epoch seconds).
+    pub iat: usize,
+    /// Issuer identifier (`"daily-challenge"`).
+    pub iss: String,
 }
 
+/// Creates a signed JWT access token for the given user.
+///
+/// # Errors
+///
+/// Returns [`AppError::InternalError`] if JWT encoding fails.
 #[tracing::instrument(skip(secret))]
 pub fn create_access_token(user_id: &str, secret: &str, expiry_minutes: i64) -> AppResult<String> {
     let now = Utc::now();
@@ -39,6 +49,14 @@ pub fn create_access_token(user_id: &str, secret: &str, expiry_minutes: i64) -> 
     Ok(token)
 }
 
+/// Validates a JWT access token and returns its [`Claims`].
+///
+/// Checks the signature, expiration, and issuer (`"daily-challenge"`).
+///
+/// # Errors
+///
+/// Returns [`AppError::Unauthorized`] if the token is invalid, expired, or
+/// signed with a different secret.
 #[tracing::instrument(skip(token, secret), fields(token_len = token.len()))]
 pub fn validate_token(token: &str, secret: &str) -> AppResult<Claims> {
     let mut validation = Validation::default();

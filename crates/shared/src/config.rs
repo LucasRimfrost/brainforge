@@ -1,5 +1,13 @@
 use std::env;
 
+/// Application configuration loaded from environment variables.
+///
+/// Required variables: `DATABASE_URL`, `JWT_SECRET`,
+/// `JWT_ACCESS_TOKEN_EXPIRY_MINUTES`, `REFRESH_TOKEN_EXPIRY_DAYS`,
+/// `BACKEND_HOST`, `BACKEND_PORT`.
+///
+/// Optional variables: `STATIC_DIR` (enables SPA file serving),
+/// `CORS_ORIGIN` (defaults to `http://localhost:3000`).
 #[derive(Clone, Debug)]
 pub struct Config {
     pub database_url: String,
@@ -13,6 +21,16 @@ pub struct Config {
 }
 
 impl Config {
+    /// Loads configuration from environment variables.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`env::VarError`] if any required variable is missing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `JWT_ACCESS_TOKEN_EXPIRY_MINUTES` or `REFRESH_TOKEN_EXPIRY_DAYS`
+    /// cannot be parsed as integers.
     pub fn from_env() -> Result<Self, env::VarError> {
         Ok(Self {
             database_url: env::var("DATABASE_URL")?,

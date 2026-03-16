@@ -8,6 +8,8 @@ use tower_http::{
 
 // ── Request ID middleware ────────────────────────────────────────────────────
 
+/// Extracts or generates a unique request ID (`x-request-id` header) and
+/// attaches it to the current tracing span and response headers.
 pub async fn request_id(mut req: Request, next: Next) -> Response {
     let id = req
         .headers()
@@ -28,11 +30,16 @@ pub async fn request_id(mut req: Request, next: Next) -> Response {
     response
 }
 
+/// Wrapper type stored in request extensions, holding the request's unique ID.
 #[derive(Clone, Debug)]
 pub struct RequestId(pub String);
 
 // ── Request / response logging middleware ─────────────────────────────────────
 
+/// Logs every request with method, path, status, latency, and body size.
+///
+/// Log level is chosen by status code: `error` for 5xx, `warn` for 4xx,
+/// `info` for everything else.
 pub async fn logging(req: Request, next: Next) -> Response {
     let method = req.method().clone();
     let uri = req.uri().clone();
@@ -88,6 +95,8 @@ pub async fn logging(req: Request, next: Next) -> Response {
 
 // ── Trace span ───────────────────────────────────────────────────────────────
 
+/// Creates an `info`-level tracing span per HTTP request with method, URI, and
+/// an empty `request_id` field filled in by [`request_id`].
 #[derive(Clone)]
 pub struct AppMakeSpan;
 
@@ -102,6 +111,7 @@ impl<B> MakeSpan<B> for AppMakeSpan {
     }
 }
 
+/// No-op `OnRequest` callback — request logging is handled by [`logging`] instead.
 #[derive(Clone)]
 pub struct DisabledOnRequest;
 
@@ -109,6 +119,7 @@ impl<B> OnRequest<B> for DisabledOnRequest {
     fn on_request(&mut self, _: &axum::http::Request<B>, _: &tracing::Span) {}
 }
 
+/// No-op `OnResponse` callback — response logging is handled by [`logging`] instead.
 #[derive(Clone)]
 pub struct DisabledOnResponse;
 
@@ -116,6 +127,8 @@ impl<B> OnResponse<B> for DisabledOnResponse {
     fn on_response(self, _: &axum::http::Response<B>, _: std::time::Duration, _: &tracing::Span) {}
 }
 
+/// Builds a [`TraceLayer`] that creates per-request spans but delegates all
+/// logging to the custom [`logging`] middleware.
 pub fn trace_layer() -> TraceLayer<
     SharedClassifier<ServerErrorsAsFailures>,
     AppMakeSpan,
@@ -130,6 +143,8 @@ pub fn trace_layer() -> TraceLayer<
 
 // ── Sensitive header redaction ───────────────────────────────────────────────
 
+/// Returns a layer that marks `Authorization`, `Cookie`, and `Set-Cookie`
+/// headers as sensitive so they are redacted in trace output.
 pub fn sensitive_headers_layer() -> SetSensitiveRequestHeadersLayer {
     use axum::http::header;
     let headers: std::sync::Arc<[_]> =

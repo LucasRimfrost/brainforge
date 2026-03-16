@@ -1,8 +1,11 @@
+//! Domain models mapped to database tables via [`sqlx::FromRow`].
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
+/// A registered user account.
 #[derive(Debug, FromRow, Serialize)]
 pub struct User {
     pub id: Uuid,
@@ -12,6 +15,7 @@ pub struct User {
     pub created_at: DateTime<Utc>,
 }
 
+/// Challenge difficulty level, stored as lowercase text in PostgreSQL.
 #[derive(Debug, sqlx::Type, Serialize, Deserialize)]
 #[sqlx(type_name = "text", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
@@ -23,6 +27,7 @@ pub enum Difficulty {
 
 // ── Games registry ──────────────────────────────────────────────────────────
 
+/// An entry in the games registry (e.g. "trivia", "code-output").
 #[derive(Debug, FromRow, Serialize)]
 pub struct Game {
     pub id: String,
@@ -36,6 +41,7 @@ pub struct Game {
 
 // ── Trivia game ─────────────────────────────────────────────────────────────
 
+/// A trivia question scheduled for a specific date.
 #[derive(Debug, FromRow, Serialize)]
 pub struct TriviaChallenge {
     pub id: Uuid,
@@ -49,6 +55,7 @@ pub struct TriviaChallenge {
     pub created_at: DateTime<Utc>,
 }
 
+/// A single answer attempt by a user for a trivia challenge.
 #[derive(Debug, FromRow, Serialize)]
 pub struct TriviaSubmission {
     pub id: Uuid,
@@ -60,6 +67,7 @@ pub struct TriviaSubmission {
     pub submitted_at: DateTime<Utc>,
 }
 
+/// Aggregate trivia statistics for a user (streaks, totals).
 #[derive(Debug, FromRow, Serialize)]
 pub struct TriviaStats {
     pub user_id: Uuid,
@@ -70,6 +78,7 @@ pub struct TriviaStats {
     pub last_solved_date: Option<chrono::NaiveDate>,
 }
 
+/// Denormalized view of a user's best attempt per trivia challenge, used for history display.
 #[derive(Debug, FromRow, Serialize)]
 pub struct TriviaChallengeHistory {
     pub challenge_id: Uuid,
@@ -81,6 +90,7 @@ pub struct TriviaChallengeHistory {
     pub submitted_at: DateTime<Utc>,
 }
 
+/// Row returned by the trivia archive query, combining challenge info with user progress.
 #[derive(Debug, FromRow)]
 pub struct TriviaArchiveRow {
     pub id: Uuid,
@@ -92,6 +102,7 @@ pub struct TriviaArchiveRow {
     pub attempts_used: i64,
 }
 
+/// A single row on the leaderboard, shared by both game types.
 #[derive(Debug, FromRow, Serialize)]
 pub struct LeaderboardRow {
     pub username: String,
@@ -100,6 +111,7 @@ pub struct LeaderboardRow {
     pub total_solved: i32,
 }
 
+/// A hashed refresh token stored in the database for token rotation.
 #[derive(Debug, FromRow)]
 pub struct RefreshToken {
     pub id: Uuid,
@@ -110,6 +122,7 @@ pub struct RefreshToken {
     pub revoked_at: Option<DateTime<Utc>>,
 }
 
+/// A hashed password-reset token with a one-hour TTL.
 #[derive(Debug, FromRow)]
 pub struct PasswordResetToken {
     pub id: Uuid,
@@ -122,6 +135,7 @@ pub struct PasswordResetToken {
 
 // ── Code Output game ────────────────────────────────────────────────────────
 
+/// A "predict the output" challenge showing a code snippet in a given language.
 #[derive(Debug, FromRow, Serialize)]
 pub struct CodeOutputChallenge {
     pub id: Uuid,
@@ -137,6 +151,7 @@ pub struct CodeOutputChallenge {
     pub created_at: DateTime<Utc>,
 }
 
+/// A single answer attempt by a user for a code-output challenge.
 #[derive(Debug, FromRow, Serialize)]
 pub struct CodeOutputSubmission {
     pub id: Uuid,
@@ -148,6 +163,7 @@ pub struct CodeOutputSubmission {
     pub submitted_at: DateTime<Utc>,
 }
 
+/// Aggregate code-output statistics for a user (streaks, totals).
 #[derive(Debug, FromRow, Serialize)]
 pub struct CodeOutputStats {
     pub user_id: Uuid,
@@ -158,6 +174,7 @@ pub struct CodeOutputStats {
     pub last_solved_date: Option<chrono::NaiveDate>,
 }
 
+/// Denormalized view of a user's best attempt per code-output challenge, used for history display.
 #[derive(Debug, FromRow, Serialize)]
 pub struct CodeOutputChallengeHistory {
     pub challenge_id: Uuid,
@@ -170,6 +187,7 @@ pub struct CodeOutputChallengeHistory {
     pub submitted_at: DateTime<Utc>,
 }
 
+/// Row returned by the code-output archive query, combining challenge info with user progress.
 #[derive(Debug, FromRow)]
 pub struct CodeOutputArchiveRow {
     pub id: Uuid,

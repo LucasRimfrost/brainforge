@@ -1,3 +1,5 @@
+//! Middleware layers: authentication, request logging, and rate limiting.
+
 pub mod auth;
 pub mod logging;
 pub mod rate_limit;

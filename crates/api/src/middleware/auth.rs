@@ -7,6 +7,14 @@ use uuid::Uuid;
 
 use crate::AppState;
 
+/// Axum extractor that validates the `access_token` cookie and provides
+/// the authenticated user's ID.
+///
+/// Add this to a handler's arguments to require authentication:
+///
+/// ```ignore
+/// async fn protected(auth: AuthUser) { /* auth.id is a valid Uuid */ }
+/// ```
 pub struct AuthUser {
     pub id: Uuid,
 }

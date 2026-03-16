@@ -10,6 +10,10 @@ use axum::routing::{get, patch, post};
 
 use crate::{AppState, handlers, middleware::logging, middleware::rate_limit::RateLimiters};
 
+/// Builds the top-level Axum router with all API routes, middleware, CORS,
+/// rate limiting, and security headers.
+///
+/// If `config.static_dir` is set, a fallback SPA file server is mounted.
 pub fn router(state: AppState) -> Router {
     let limiters = RateLimiters::new();
     limiters.spawn_cleanup();

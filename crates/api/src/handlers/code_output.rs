@@ -18,7 +18,9 @@ use uuid::Uuid;
 
 use crate::{AppState, middleware::AuthUser};
 
-/// Normalize code output for comparison: unify quote style and spacing
+/// Normalizes code output for comparison by unifying quote style and spacing.
+///
+/// Converts double quotes to single quotes and removes spaces after `,` and `:`,
 /// so that e.g. `["a", "b"]` and `['a', 'b']` and `['a','b']` all match.
 fn normalize_output(s: &str) -> String {
     s.trim()
@@ -29,6 +31,7 @@ fn normalize_output(s: &str) -> String {
 
 // ── Request types ──────────────────────────────────────────────────────────
 
+/// Payload for `POST /code-output/submit`.
 #[derive(Deserialize)]
 pub struct SubmitRequest {
     pub answer: String,
@@ -37,6 +40,7 @@ pub struct SubmitRequest {
 
 // ── Response types ──────────────────────────────────────────────────────────
 
+/// Full challenge view returned to the client, including the code snippet and user progress.
 #[derive(Serialize)]
 pub struct CodeOutputChallengeResponse {
     pub id: Uuid,
@@ -54,19 +58,23 @@ pub struct CodeOutputChallengeResponse {
     pub previous_guesses: Vec<String>,
 }
 
+/// Outcome of a submission attempt.
 #[derive(Serialize)]
 pub struct SubmitResponse {
     pub is_correct: bool,
     pub attempt_number: i32,
     pub attempts_remaining: i32,
+    /// Revealed after the second incorrect attempt.
     pub hint: Option<String>,
 }
 
+/// Optional query parameters for the history endpoint.
 #[derive(Deserialize)]
 pub struct HistoryParams {
     pub limit: Option<i64>,
 }
 
+/// Summary of a past code-output challenge for the archive view.
 #[derive(Serialize)]
 pub struct ArchiveEntry {
     pub id: Uuid,
@@ -81,6 +89,7 @@ pub struct ArchiveEntry {
 
 // ── Router ──────────────────────────────────────────────────────────
 
+/// Mounts code-output routes: `today`, `submit`, `history`, `archive`, `{date}`.
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/today", get(today))

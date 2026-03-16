@@ -2,6 +2,12 @@ use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde::Serialize;
 use thiserror::Error;
 
+/// Application-wide error type that maps to HTTP status codes.
+///
+/// Each variant carries enough context to produce a meaningful JSON error
+/// response. The [`IntoResponse`] implementation handles the mapping to
+/// status codes and ensures that internal details (e.g. raw database errors)
+/// are never leaked to clients.
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("Bad request: {0}")]
@@ -29,6 +35,7 @@ pub enum AppError {
     UnprocessableEntity(String),
 }
 
+/// Convenience alias used throughout the application for fallible returns.
 pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Serialize)]

@@ -11,12 +11,15 @@ use shared::error::AppResult;
 
 use crate::AppState;
 
+/// Query parameters for the leaderboard endpoint.
 #[derive(Deserialize)]
 pub struct LeaderboardParams {
     limit: Option<i64>,
+    /// Game identifier: `"trivia"` (default) or `"code-output"`.
     game: Option<String>,
 }
 
+/// Mounts the leaderboard route at `/`.
 pub fn router() -> Router<AppState> {
     Router::new().route("/", get(leaderboard))
 }

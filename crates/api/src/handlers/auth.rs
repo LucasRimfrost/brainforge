@@ -18,6 +18,7 @@ use crate::{AppState, middleware::AuthUser};
 
 // ── Request types ───────────────────────────────────────────────────────────
 
+/// Payload for `POST /auth/register`.
 #[derive(Deserialize, Validate)]
 pub struct RegisterRequest {
     #[validate(length(
@@ -34,6 +35,7 @@ pub struct RegisterRequest {
     pub password: String,
 }
 
+/// Payload for `POST /auth/login`.
 #[derive(Deserialize, Validate)]
 pub struct LoginRequest {
     #[validate(email(message = "Invalid email format"))]
@@ -42,12 +44,14 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+/// Payload for `POST /auth/forgot-password`.
 #[derive(Deserialize, Validate)]
 pub struct ForgotPasswordRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
 }
 
+/// Payload for `POST /auth/reset-password`.
 #[derive(Deserialize, Validate)]
 pub struct ResetPasswordRequest {
     pub token: String,
@@ -56,6 +60,7 @@ pub struct ResetPasswordRequest {
     pub new_password: String,
 }
 
+/// Payload for `PATCH /auth/profile`.
 #[derive(Deserialize, Validate)]
 pub struct UpdateProfileRequest {
     #[validate(length(
@@ -66,6 +71,7 @@ pub struct UpdateProfileRequest {
     pub username: String,
 }
 
+/// Payload for `PATCH /auth/email`. Requires re-authentication via `current_password`.
 #[derive(Deserialize, Validate)]
 pub struct UpdateEmailRequest {
     #[validate(email(message = "Invalid email format"))]
@@ -74,6 +80,7 @@ pub struct UpdateEmailRequest {
     pub current_password: String,
 }
 
+/// Payload for `PATCH /auth/password`. Requires re-authentication via `current_password`.
 #[derive(Deserialize, Validate)]
 pub struct UpdatePasswordRequest {
     #[validate(length(min = 1, message = "Current password cannot be empty"))]
@@ -84,6 +91,7 @@ pub struct UpdatePasswordRequest {
 
 // ── Response types ──────────────────────────────────────────────────────────
 
+/// Returned after registration, login, and profile updates.
 #[derive(Serialize)]
 pub struct AuthResponse {
     pub id: String,
@@ -91,6 +99,7 @@ pub struct AuthResponse {
     pub email: String,
 }
 
+/// Returned by `GET /auth/me` — user profile combined with per-game stats.
 #[derive(Serialize)]
 pub struct MeResponse {
     pub id: String,
@@ -100,6 +109,7 @@ pub struct MeResponse {
     pub code_output_stats: StatsResponse,
 }
 
+/// Aggregate game statistics for a single user and game type.
 #[derive(Serialize, Default)]
 pub struct StatsResponse {
     pub current_streak: i32,

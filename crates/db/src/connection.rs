@@ -3,6 +3,14 @@ use std::time::Duration;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
+/// Creates a PostgreSQL connection pool.
+///
+/// The pool is configured with a maximum of 10 connections, a 5-second
+/// acquire timeout, and a 10-minute idle timeout.
+///
+/// # Errors
+///
+/// Returns [`sqlx::Error`] if the database is unreachable.
 pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     tracing::info!(
         max_connections = 10,

@@ -5,6 +5,7 @@ use db::connection;
 use shared::config::Config;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+/// Entry point: loads config, connects to the database, and starts the HTTP server.
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
@@ -35,6 +36,7 @@ async fn main() {
     .expect("Server error");
 }
 
+/// Waits for `Ctrl+C` or `SIGTERM` and resolves, enabling graceful shutdown.
 async fn shutdown_signal() {
     use tokio::signal;
 

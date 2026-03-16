@@ -4,6 +4,7 @@ use shared::error::AppResult;
 
 use crate::AppState;
 
+/// Mounts the games list route at `/`.
 pub fn router() -> Router<AppState> {
     Router::new().route("/", get(list_games))
 }

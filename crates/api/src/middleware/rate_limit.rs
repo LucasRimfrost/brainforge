@@ -5,8 +5,13 @@ use governor::middleware::StateInformationMiddleware;
 use tower_governor::governor::{GovernorConfig, GovernorConfigBuilder};
 use tower_governor::key_extractor::SmartIpKeyExtractor;
 
+/// Shared, arc-wrapped governor configuration keyed by client IP.
 pub type RateLimitConfig = Arc<GovernorConfig<SmartIpKeyExtractor, StateInformationMiddleware>>;
 
+/// Holds the two rate-limiter configurations used by the application.
+///
+/// - `global` — applies to every request (5 req/s, burst of 50).
+/// - `auth` — stricter limiter for authentication endpoints (1 req/10s, burst of 5).
 pub struct RateLimiters {
     pub global: RateLimitConfig,
     pub auth: RateLimitConfig,
@@ -19,6 +24,7 @@ impl Default for RateLimiters {
 }
 
 impl RateLimiters {
+    /// Creates the global and auth rate limiters with default parameters.
     pub fn new() -> Self {
         let global = Arc::new(
             GovernorConfigBuilder::default()
@@ -43,6 +49,7 @@ impl RateLimiters {
         Self { global, auth }
     }
 
+    /// Spawns a background task that evicts stale rate-limiter entries every 60 seconds.
     pub fn spawn_cleanup(&self) {
         let global_limiter = self.global.limiter().clone();
         let auth_limiter = self.auth.limiter().clone();

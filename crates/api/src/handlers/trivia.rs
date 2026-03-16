@@ -23,6 +23,7 @@ use crate::{AppState, middleware::AuthUser};
 
 // ── Request types ──────────────────────────────────────────────────────────
 
+/// Payload for `POST /trivia/submit`.
 #[derive(Deserialize)]
 pub struct SubmitRequest {
     pub answer: String,
@@ -31,6 +32,7 @@ pub struct SubmitRequest {
 
 // ── Response types ──────────────────────────────────────────────────────────
 
+/// Full challenge view returned to the client, including user progress.
 #[derive(Serialize)]
 pub struct TriviaChallengeResponse {
     pub id: Uuid,
@@ -46,21 +48,25 @@ pub struct TriviaChallengeResponse {
     pub previous_guesses: Vec<String>,
 }
 
+/// Outcome of a submission attempt.
 #[derive(Serialize)]
 pub struct SubmitResponse {
     pub is_correct: bool,
     pub attempt_number: i32,
     pub attempts_remaining: i32,
+    /// Revealed after the third incorrect attempt.
     pub hint: Option<String>,
 }
 
 // ── Query params ──────────────────────────────────────────────────────────
 
+/// Optional query parameters for the history endpoint.
 #[derive(Deserialize)]
 pub struct HistoryParams {
     pub limit: Option<i64>,
 }
 
+/// Summary of a past trivia challenge for the archive view.
 #[derive(Serialize)]
 pub struct ArchiveEntry {
     pub id: Uuid,
@@ -73,6 +79,8 @@ pub struct ArchiveEntry {
 }
 
 // ── Router ──────────────────────────────────────────────────────────
+
+/// Mounts trivia routes: `today`, `submit`, `history`, `archive`, `{date}`.
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/today", get(today))

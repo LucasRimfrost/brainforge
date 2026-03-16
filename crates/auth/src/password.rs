@@ -5,6 +5,14 @@ use argon2::{
 use shared::error::AppError;
 use std::time::Instant;
 
+/// Hashes a plaintext password using Argon2id with a random salt.
+///
+/// This is a CPU-intensive operation and should be run on a blocking thread
+/// (e.g. via [`tokio::task::spawn_blocking`]).
+///
+/// # Errors
+///
+/// Returns [`AppError::InternalError`] if hashing fails.
 #[tracing::instrument(skip(password))]
 pub fn hash_password(password: &str) -> Result<String, AppError> {
     let start = Instant::now();
@@ -23,6 +31,16 @@ pub fn hash_password(password: &str) -> Result<String, AppError> {
     Ok(hash)
 }
 
+/// Verifies a plaintext password against an Argon2 PHC hash string.
+///
+/// Returns `true` if the password matches, `false` otherwise.
+///
+/// This is a CPU-intensive operation and should be run on a blocking thread
+/// (e.g. via [`tokio::task::spawn_blocking`]).
+///
+/// # Errors
+///
+/// Returns [`AppError::InternalError`] if the stored hash is malformed.
 #[tracing::instrument(skip(password, hash))]
 pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
     let start = Instant::now();
