@@ -1,4 +1,4 @@
-# Daily Challenge
+# BrainForge
 
 A daily programming challenge platform where users solve trivia questions and predict code output. Built with a Rust backend and React frontend, deployed as a single static binary from a scratch Docker image.
 
@@ -41,7 +41,7 @@ A daily programming challenge platform where users solve trivia questions and pr
 ```bash
 # Clone and enter the project
 git clone <repo-url>
-cd daily-challenge
+cd brainforge
 
 # Start PostgreSQL
 docker compose up -d
@@ -76,8 +76,8 @@ The API serves on `http://localhost:8080` and the frontend dev server on `http:/
 ### Production build
 
 ```bash
-docker build -t daily-challenge .
-docker run -p 8080:8080 --env-file .env daily-challenge
+docker build -t brainforge .
+docker run -p 8080:8080 --env-file .env brainforge
 ```
 
 The final image is built from `scratch` -- it contains only the static binary, frontend assets, CA certificates, and migrations. Runs as a non-root user.
