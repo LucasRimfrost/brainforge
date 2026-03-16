@@ -40,10 +40,10 @@ export function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  function load() {
+  function load(game: "trivia" | "code-output") {
     setLoading(true);
     setError(false);
-    getLeaderboard()
+    getLeaderboard(game)
       .then(setEntries)
       .catch((err) => {
         setError(true);
@@ -57,9 +57,9 @@ export function LeaderboardPage() {
   }
 
   useEffect(() => {
-    load();
+    load(tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tab]);
 
   if (loading) {
     return (
@@ -81,7 +81,7 @@ export function LeaderboardPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Check your connection and try again.
           </p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={load}>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => load(tab)}>
             <RefreshCw className="mr-2 size-3.5" />
             Retry
           </Button>
@@ -129,15 +129,7 @@ export function LeaderboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {tab === "code-output" ? (
-            <div className="flex flex-col items-center gap-2 py-12 text-center">
-              <Code className="size-10 text-muted-foreground/50" />
-              <p className="font-medium">Coming soon</p>
-              <p className="text-sm text-muted-foreground">
-                The What's the Output? leaderboard is on its way!
-              </p>
-            </div>
-          ) : entries.length === 0 ? (
+          {entries.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
               <Users className="size-10 text-muted-foreground/50" />
               <p className="font-medium">No players yet</p>

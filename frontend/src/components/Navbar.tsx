@@ -59,10 +59,7 @@ export function Navbar() {
       return user.code_output_stats.current_streak;
     if (pathname === "/trivia" || pathname.startsWith("/trivia/"))
       return user.trivia_stats.current_streak;
-    return Math.max(
-      user.trivia_stats.current_streak,
-      user.code_output_stats.current_streak,
-    );
+    return 0;
   })();
 
   // Minimal nav for unauthenticated users
