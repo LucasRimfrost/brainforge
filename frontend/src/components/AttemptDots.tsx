@@ -47,7 +47,8 @@ export function AttemptDots({
           <div key={i} className="relative">
             <span
               className={cn(
-                "flex items-center justify-center rounded-full transition-all duration-300 cursor-default",
+                "flex items-center justify-center rounded-full transition-all duration-300",
+                used ? "cursor-pointer" : "cursor-default",
                 sizeClass,
                 dotColor,
                 poppedDot === i && "animate-pop",

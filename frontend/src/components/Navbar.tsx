@@ -71,13 +71,13 @@ export function Navbar() {
 
           <Link
             to="/login"
-            className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-2 py-1 text-lg font-bold tracking-tight transition-all duration-150 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-2 py-1 text-lg font-bold tracking-tight transition-opacity duration-150 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <Zap className="size-5 text-primary" />
             BrainForge
           </Link>
 
-          <Button variant="ghost" size="icon" onClick={toggleTheme}>
+          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
             {theme === "dark" ? (
               <Sun className="size-4" />
             ) : (
@@ -98,7 +98,7 @@ export function Navbar() {
             <button
               onClick={() => setSidebarOpen(true)}
               aria-label="Open menu"
-              className="flex size-11 items-center justify-center rounded-lg text-foreground transition-all duration-150 hover:bg-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex size-11 items-center justify-center rounded-lg text-foreground transition-colors duration-150 hover:bg-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <Menu className="size-6" strokeWidth={2.5} />
             </button>
@@ -112,7 +112,7 @@ export function Navbar() {
                 onClick={() => setArchiveOpen((v) => !v)}
                 title="Archive"
                 aria-label="Archive"
-                className="flex size-11 items-center justify-center rounded-lg text-foreground transition-all duration-150 hover:bg-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="flex size-11 items-center justify-center rounded-lg text-foreground transition-colors duration-150 hover:bg-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <CalendarDays className="size-6" strokeWidth={2.5} />
               </button>
@@ -144,7 +144,7 @@ export function Navbar() {
               onClick={() => navigate("/leaderboard")}
               title="Leaderboard"
               aria-label="Leaderboard"
-              className="flex size-11 items-center justify-center rounded-lg text-foreground transition-all duration-150 hover:bg-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex size-11 items-center justify-center rounded-lg text-foreground transition-colors duration-150 hover:bg-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <Trophy className="size-6" strokeWidth={2.5} />
             </button>
@@ -155,7 +155,7 @@ export function Navbar() {
           {/* Center: brand */}
           <Link
             to="/"
-            className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-2 py-1 text-lg font-bold tracking-tight transition-all duration-150 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-2 py-1 text-lg font-bold tracking-tight transition-opacity duration-150 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <Zap className="size-5 text-primary" />
             BrainForge
@@ -170,7 +170,7 @@ export function Navbar() {
               </div>
             )}
 
-            <Button variant="ghost" size="icon" onClick={toggleTheme}>
+            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
               {theme === "dark" ? (
                 <Sun className="size-4" />
               ) : (
@@ -184,7 +184,7 @@ export function Navbar() {
                 aria-label="User menu"
                 className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                <Avatar className="size-8 cursor-pointer transition-all duration-150 hover:opacity-80 hover:ring-2 hover:ring-ring/30 active:scale-95">
+                <Avatar className="size-8 cursor-pointer transition-[opacity,box-shadow] duration-150 hover:opacity-80 hover:ring-2 hover:ring-ring/30 active:scale-95">
                   <AvatarFallback className="text-xs">
                     {user.username.slice(0, 2).toUpperCase()}
                   </AvatarFallback>

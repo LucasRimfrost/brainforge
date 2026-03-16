@@ -79,6 +79,7 @@ export function CodeOutputPage() {
   const [hintVisible, setHintVisible] = useState(false);
   const [guesses, setGuesses] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fetchIdRef = useRef(0);
 
   const highlightedLines = useMemo(() => {
     if (!challenge) return [];
@@ -94,6 +95,7 @@ export function CodeOutputPage() {
   }, [challenge]);
 
   const fetchChallenge = useCallback(async () => {
+    const id = ++fetchIdRef.current;
     setLoading(true);
     setLoadError("");
     setChallenge(null);
@@ -104,12 +106,14 @@ export function CodeOutputPage() {
     setGuesses([]);
     try {
       const data = date ? await getChallengeByDate(date) : await getToday();
+      if (fetchIdRef.current !== id) return; // stale response
       setChallenge(data);
       setGuesses(data.previous_guesses ?? []);
       if (data.attempts_used >= 2) {
         setHint(data.hint);
       }
     } catch (err) {
+      if (fetchIdRef.current !== id) return;
       if (err instanceof ApiRequestError && err.status === 404) {
         setLoadError(
           date
@@ -120,7 +124,7 @@ export function CodeOutputPage() {
         setLoadError("Failed to load challenge.");
       }
     } finally {
-      setLoading(false);
+      if (fetchIdRef.current === id) setLoading(false);
     }
   }, [date]);
 
@@ -141,9 +145,13 @@ export function CodeOutputPage() {
   async function handleShare() {
     if (!challenge) return;
     const text = generateShareText(challenge);
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -186,8 +194,11 @@ export function CodeOutputPage() {
         setTimeout(() => inputRef.current?.focus(), 100);
       }
     } catch (err) {
+      setGuesses((prev) => prev.slice(0, -1));
       if (err instanceof ApiRequestError) {
         toast.error(err.message);
+      } else {
+        toast.error("Connection error. Please try again.");
       }
     } finally {
       setSubmitting(false);
@@ -272,12 +283,17 @@ export function CodeOutputPage() {
                 {getLanguageLabel(challenge.language)}
               </Badge>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(challenge.code_snippet);
-                  setCodeCopied(true);
-                  setTimeout(() => setCodeCopied(false), 2000);
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(challenge.code_snippet);
+                    setCodeCopied(true);
+                    setTimeout(() => setCodeCopied(false), 2000);
+                  } catch {
+                    toast.error("Failed to copy code");
+                  }
                 }}
                 title="Copy code"
+                aria-label="Copy code"
                 className="rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-700 hover:text-neutral-300"
               >
                 {codeCopied ? (

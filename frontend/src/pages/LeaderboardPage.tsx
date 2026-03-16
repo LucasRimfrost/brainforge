@@ -61,35 +61,6 @@ export function LeaderboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-3 size-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
-          <p className="text-sm text-muted-foreground">Loading leaderboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <Trophy className="mx-auto mb-3 size-10 text-muted-foreground/50" />
-          <p className="font-medium">Couldn't load leaderboard</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Check your connection and try again.
-          </p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => load(tab)}>
-            <RefreshCw className="mr-2 size-3.5" />
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-2xl space-y-1">
       <Card>
@@ -104,7 +75,7 @@ export function LeaderboardPage() {
           <div className="mt-3 flex gap-1 rounded-lg bg-muted p-1">
             <button
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.97]",
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.97]",
                 tab === "trivia"
                   ? "bg-background shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -116,7 +87,7 @@ export function LeaderboardPage() {
             </button>
             <button
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.97]",
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.97]",
                 tab === "code-output"
                   ? "bg-background shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -129,7 +100,26 @@ export function LeaderboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {entries.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="mx-auto mb-3 size-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+                <p className="text-sm text-muted-foreground">Loading leaderboard...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center gap-2 py-12 text-center">
+              <Trophy className="size-10 text-muted-foreground/50" />
+              <p className="font-medium">Couldn't load leaderboard</p>
+              <p className="text-sm text-muted-foreground">
+                Check your connection and try again.
+              </p>
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => load(tab)}>
+                <RefreshCw className="mr-2 size-3.5" />
+                Retry
+              </Button>
+            </div>
+          ) : entries.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
               <Users className="size-10 text-muted-foreground/50" />
               <p className="font-medium">No players yet</p>

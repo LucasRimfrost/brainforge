@@ -36,7 +36,6 @@ function SidebarLink({
     <Link
       to={to}
       onClick={onClose}
-      tabIndex={-1}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.98]",
         active
@@ -82,6 +81,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         open ? "" : "pointer-events-none",
       )}
       aria-hidden={!open}
+      inert={!open || undefined}
     >
       {/* Backdrop */}
       <div
@@ -104,6 +104,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           <span className="text-lg font-bold tracking-tight">BrainForge</span>
           <button
             onClick={onClose}
+            aria-label="Close menu"
             className="rounded-md p-1.5 text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <X className="size-5" />

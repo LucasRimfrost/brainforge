@@ -65,8 +65,10 @@ export function ChallengePage() {
   const [hintVisible, setHintVisible] = useState(false);
   const [guesses, setGuesses] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fetchIdRef = useRef(0);
 
   const fetchChallenge = useCallback(async () => {
+    const id = ++fetchIdRef.current;
     setLoading(true);
     setLoadError("");
     setChallenge(null);
@@ -77,12 +79,14 @@ export function ChallengePage() {
     setGuesses([]);
     try {
       const data = date ? await getChallengeByDate(date) : await getToday();
+      if (fetchIdRef.current !== id) return; // stale response
       setChallenge(data);
       setGuesses(data.previous_guesses ?? []);
       if (data.attempts_used >= 3) {
         setHint(data.hint);
       }
     } catch (err) {
+      if (fetchIdRef.current !== id) return;
       if (err instanceof ApiRequestError && err.status === 404) {
         setLoadError(
           date
@@ -93,7 +97,7 @@ export function ChallengePage() {
         setLoadError("Failed to load challenge.");
       }
     } finally {
-      setLoading(false);
+      if (fetchIdRef.current === id) setLoading(false);
     }
   }, [date]);
 
@@ -111,9 +115,13 @@ export function ChallengePage() {
   async function handleShare() {
     if (!challenge) return;
     const text = generateShareText(challenge);
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -161,8 +169,11 @@ export function ChallengePage() {
         setTimeout(() => inputRef.current?.focus(), 100);
       }
     } catch (err) {
+      setGuesses((prev) => prev.slice(0, -1));
       if (err instanceof ApiRequestError) {
         toast.error(err.message);
+      } else {
+        toast.error("Connection error. Please try again.");
       }
     } finally {
       setSubmitting(false);
@@ -410,7 +421,7 @@ export function ChallengePage() {
 
         {/* Stats footer when done */}
         {done && user && (
-          <CardFooter>
+          <CardFooter className="border-t">
             <div className="flex w-full items-center justify-around text-center text-sm">
               <div>
                 <p className="text-lg font-bold">{user.trivia_stats.total_solved}</p>

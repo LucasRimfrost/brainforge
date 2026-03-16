@@ -117,7 +117,7 @@ export function CalendarArchive({ entries, basePath }: CalendarArchiveProps) {
     <div>
       {/* Month navigation */}
       <div className="mb-6 flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={prevMonth}>
+        <Button variant="ghost" size="icon" onClick={prevMonth} aria-label="Previous month">
           <ChevronLeft className="size-5" />
         </Button>
         <h2 className="text-lg font-semibold">
@@ -128,6 +128,7 @@ export function CalendarArchive({ entries, basePath }: CalendarArchiveProps) {
           size="icon"
           onClick={nextMonth}
           disabled={isCurrentMonth}
+          aria-label="Next month"
           className={cn(isCurrentMonth && "invisible")}
         >
           <ChevronRight className="size-5" />
@@ -163,7 +164,7 @@ export function CalendarArchive({ entries, basePath }: CalendarArchiveProps) {
           const cell = (
             <div
               className={cn(
-                "flex aspect-square items-center justify-center rounded-lg text-sm font-medium transition-all duration-150",
+                "flex aspect-square items-center justify-center rounded-lg text-sm font-medium transition-[transform,box-shadow] duration-150",
                 statusStyles[status],
                 isClickable && "hover:scale-110 hover:shadow-md",
                 isToday && status !== "empty" && "ring-2 ring-primary",
