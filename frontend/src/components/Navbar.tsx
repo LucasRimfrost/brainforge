@@ -4,8 +4,10 @@ import {
   CalendarDays,
   Flame,
   Lightbulb,
+  LogOut,
   Menu,
   Moon,
+  Settings,
   Sun,
   Terminal,
   Trophy,
@@ -18,23 +20,30 @@ import { useTheme } from "@/hooks/useTheme";
 import { Sidebar } from "./Sidebar";
 
 export function Navbar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const archiveRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLDivElement>(null);
 
-  // Close archive dropdown on outside click or Escape
+  // Close dropdowns on outside click or Escape
   useEffect(() => {
-    if (!archiveOpen) return;
+    if (!archiveOpen && !avatarOpen) return;
     function onClick(e: MouseEvent) {
-      if (archiveRef.current && !archiveRef.current.contains(e.target as Node))
+      if (archiveOpen && archiveRef.current && !archiveRef.current.contains(e.target as Node))
         setArchiveOpen(false);
+      if (avatarOpen && avatarRef.current && !avatarRef.current.contains(e.target as Node))
+        setAvatarOpen(false);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setArchiveOpen(false);
+      if (e.key === "Escape") {
+        setArchiveOpen(false);
+        setAvatarOpen(false);
+      }
     }
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
@@ -42,7 +51,7 @@ export function Navbar() {
       document.removeEventListener("mousedown", onClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [archiveOpen]);
+  }, [archiveOpen, avatarOpen]);
 
   const streak = (() => {
     if (!user) return 0;
@@ -172,13 +181,39 @@ export function Navbar() {
               )}
             </Button>
 
-            <Link to="/settings" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-              <Avatar className="size-8 transition-all duration-150 hover:opacity-70 active:scale-95">
-                <AvatarFallback className="text-xs">
-                  {user.username.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </Link>
+            <div ref={avatarRef} className="relative">
+              <button
+                onClick={() => setAvatarOpen((v) => !v)}
+                aria-label="User menu"
+                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <Avatar className="size-8 cursor-pointer transition-all duration-150 hover:opacity-80 hover:ring-2 hover:ring-ring/30 active:scale-95">
+                  <AvatarFallback className="text-xs">
+                    {user.username.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+
+              {avatarOpen && (
+                <div className="absolute right-0 top-full mt-1 w-44 animate-[fade-in_150ms_ease] rounded-lg border border-border bg-background p-1 shadow-lg">
+                  <Link
+                    to="/settings"
+                    onClick={() => setAvatarOpen(false)}
+                    className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    <Settings className="size-4 shrink-0 text-muted-foreground" />
+                    Settings
+                  </Link>
+                  <button
+                    onClick={() => { setAvatarOpen(false); logout(); }}
+                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    <LogOut className="size-4 shrink-0 text-muted-foreground" />
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
