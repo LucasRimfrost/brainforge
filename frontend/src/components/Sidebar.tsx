@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Calendar,
@@ -36,8 +36,9 @@ function SidebarLink({
     <Link
       to={to}
       onClick={onClose}
+      tabIndex={-1}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.98]",
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.98]",
         active
           ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -51,27 +52,16 @@ function SidebarLink({
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [closing, setClosing] = useState(false);
-
-  function handleClose() {
-    setClosing(true);
-    setTimeout(() => {
-      setClosing(false);
-      onClose();
-    }, 250);
-  }
 
   // Close on Escape
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") handleClose();
+      if (e.key === "Escape") onClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, onClose]);
 
   // Prevent body scroll when open
   useEffect(() => {
@@ -85,37 +75,36 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     };
   }, [open]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[60]">
+    <div
+      className={cn(
+        "fixed inset-0 z-[60]",
+        open ? "" : "pointer-events-none",
+      )}
+      aria-hidden={!open}
+    >
       {/* Backdrop */}
       <div
         className={cn(
-          "absolute inset-0 bg-black/60 backdrop-blur-sm",
-          closing
-            ? "animate-[fade-out_250ms_ease]"
-            : "animate-[fade-in_250ms_ease]",
+          "absolute inset-0 bg-black/50 transition-opacity duration-250 ease-out",
+          open ? "opacity-100" : "opacity-0",
         )}
-        onClick={handleClose}
+        onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        ref={panelRef}
         className={cn(
-          "absolute inset-y-0 left-0 flex w-72 flex-col border-r border-border bg-background shadow-2xl",
-          closing
-            ? "animate-[slide-out-left_250ms_ease]"
-            : "animate-[slide-in-left_300ms_ease]",
+          "absolute inset-y-0 left-0 flex w-72 flex-col border-r border-border bg-background shadow-2xl transition-transform duration-250 ease-out will-change-transform",
+          open ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-4">
           <span className="text-lg font-bold tracking-tight">BrainForge</span>
           <button
-            onClick={handleClose}
-            className="rounded-md p-1.5 text-muted-foreground transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <X className="size-5" />
           </button>
@@ -123,17 +112,17 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Nav links */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          <SidebarLink to="/" icon={Home} onClose={handleClose}>
+          <SidebarLink to="/" icon={Home} onClose={onClose}>
             Home
           </SidebarLink>
 
           <p className="px-3 pb-1 pt-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Games
           </p>
-          <SidebarLink to="/trivia" icon={Lightbulb} onClose={handleClose}>
+          <SidebarLink to="/trivia" icon={Lightbulb} onClose={onClose}>
             Daily Trivia
           </SidebarLink>
-          <SidebarLink to="/code-output" icon={Terminal} onClose={handleClose}>
+          <SidebarLink to="/code-output" icon={Terminal} onClose={onClose}>
             What's the Output?
           </SidebarLink>
 
@@ -143,25 +132,25 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           <SidebarLink
             to="/trivia/archive"
             icon={Calendar}
-            onClose={handleClose}
+            onClose={onClose}
           >
             Trivia Archive
           </SidebarLink>
           <SidebarLink
             to="/code-output/archive"
             icon={Calendar}
-            onClose={handleClose}
+            onClose={onClose}
           >
             Code Output Archive
           </SidebarLink>
 
           <div className="my-3 border-t border-border" />
 
-          <SidebarLink to="/leaderboard" icon={Trophy} onClose={handleClose}>
+          <SidebarLink to="/leaderboard" icon={Trophy} onClose={onClose}>
             Leaderboard
           </SidebarLink>
           {user && (
-            <SidebarLink to="/settings" icon={Settings} onClose={handleClose}>
+            <SidebarLink to="/settings" icon={Settings} onClose={onClose}>
               Settings
             </SidebarLink>
           )}
@@ -176,10 +165,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             </div>
             <button
               onClick={() => {
-                handleClose();
+                onClose();
                 logout();
               }}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-150 hover:bg-destructive/10 hover:text-destructive active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-destructive/10 hover:text-destructive active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <LogOut className="size-4" />
               Log out
