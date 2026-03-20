@@ -14,6 +14,7 @@ use db::queries::{
 use serde::{Deserialize, Serialize};
 use shared::error::{AppError, AppResult};
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::{AppState, middleware::AuthUser};
 
@@ -31,8 +32,9 @@ fn normalize_output(s: &str) -> String {
 // ── Request types ──────────────────────────────────────────────────────────
 
 /// Payload for `POST /code-output/submit`.
-#[derive(Deserialize)]
+#[derive(Deserialize, Validate)]
 pub struct SubmitRequest {
+    #[validate(length(max = 1000, message = "Answer must not exceed 1000 characters"))]
     pub answer: String,
     pub challenge_id: Uuid,
 }
@@ -161,6 +163,8 @@ pub async fn submit(
     auth_user: AuthUser,
     Json(payload): Json<SubmitRequest>,
 ) -> AppResult<impl IntoResponse> {
+    payload.validate()?;
+
     let user_id = auth_user.id;
     let challenge_id = payload.challenge_id;
 
