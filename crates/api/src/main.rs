@@ -17,6 +17,11 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
 
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
+
     let addr = format!("{}:{}", config.host, config.port);
     let state = AppState { pool, config };
     let router = routes::router(state);
