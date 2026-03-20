@@ -300,7 +300,7 @@ pub async fn forgot_password(
         // Generate reset token
         let raw_token = auth::token::generate_refresh_token();
         let token_hash = auth::token::hash_refresh_token(&raw_token);
-        let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+        let expires_at = chrono::Utc::now() + chrono::Duration::minutes(30);
 
         db::queries::create_password_reset_token(&state.pool, user.id, &token_hash, expires_at)
             .await?;
