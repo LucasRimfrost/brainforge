@@ -1,0 +1,2 @@
+CREATE INDEX idx_trivia_submissions_user_challenge ON trivia_submissions(user_id, challenge_id);
+CREATE INDEX idx_code_output_submissions_user_challenge ON code_output_submissions(user_id, challenge_id);
