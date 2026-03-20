@@ -1,12 +1,14 @@
 //! Domain models mapped to database tables via [`sqlx::FromRow`].
 
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
 /// A registered user account.
-#[derive(Debug, FromRow, Serialize)]
+#[derive(FromRow, Serialize)]
 pub struct User {
     pub id: Uuid,
     pub username: String,
@@ -14,6 +16,18 @@ pub struct User {
     #[serde(skip_serializing)]
     pub password_hash: String,
     pub created_at: DateTime<Utc>,
+}
+
+impl fmt::Debug for User {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("User")
+            .field("id", &self.id)
+            .field("username", &self.username)
+            .field("email", &self.email)
+            .field("password_hash", &"[REDACTED]")
+            .field("created_at", &self.created_at)
+            .finish()
+    }
 }
 
 /// Challenge difficulty level, stored as lowercase text in PostgreSQL.
