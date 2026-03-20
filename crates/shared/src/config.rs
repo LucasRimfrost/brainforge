@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, fmt};
 
 /// Application configuration loaded from environment variables.
 ///
@@ -8,7 +8,7 @@ use std::env;
 ///
 /// Optional variables: `STATIC_DIR` (enables SPA file serving),
 /// `CORS_ORIGIN` (defaults to `http://localhost:3000`).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Config {
     pub database_url: String,
     pub jwt_secret: String,
@@ -18,6 +18,21 @@ pub struct Config {
     pub port: String,
     pub static_dir: Option<String>,
     pub cors_origin: Option<String>,
+}
+
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Config")
+            .field("database_url", &"[REDACTED]")
+            .field("jwt_secret", &"[REDACTED]")
+            .field("jwt_access_token_expiry_minutes", &self.jwt_access_token_expiry_minutes)
+            .field("refresh_token_expiry_days", &self.refresh_token_expiry_days)
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("static_dir", &self.static_dir)
+            .field("cors_origin", &self.cors_origin)
+            .finish()
+    }
 }
 
 impl Config {
