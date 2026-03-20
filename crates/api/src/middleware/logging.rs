@@ -15,6 +15,7 @@ pub async fn request_id(mut req: Request, next: Next) -> Response {
         .headers()
         .get("x-request-id")
         .and_then(|v| v.to_str().ok())
+        .filter(|v| v.len() <= 64 && v.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
         .map(String::from)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
