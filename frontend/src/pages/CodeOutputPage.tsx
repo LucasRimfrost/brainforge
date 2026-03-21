@@ -32,7 +32,7 @@ import {
   Share2,
   Terminal,
 } from "lucide-react";
-import { AttemptDots } from "@/components/AttemptDots";
+import { SegmentedProgressBar } from "@/components/SegmentedProgressBar";
 import Prism from "prismjs";
 import "prismjs/components/prism-python";
 import "prismjs/components/prism-javascript";
@@ -362,16 +362,16 @@ export function CodeOutputPage() {
         {/* ── Unsolved ── */}
         {!done && (
           <>
-            {/* Attempt progress — centered */}
-            <div className="flex flex-col items-center gap-2.5">
-              <AttemptDots
+            {/* Attempt progress bar */}
+            <div className="flex flex-col gap-2">
+              <SegmentedProgressBar
                 maxAttempts={challenge.max_attempts}
                 attemptsUsed={challenge.attempts_used}
                 isSolved={false}
                 guesses={guesses}
-                poppedDot={poppedDot}
+                animatingSegment={poppedDot}
               />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground text-center">
                 Attempt {Math.min(challenge.attempts_used + 1, challenge.max_attempts)} of {challenge.max_attempts}
               </p>
             </div>
@@ -451,16 +451,13 @@ export function CodeOutputPage() {
         {/* ── Solved ── */}
         {challenge.is_solved && (
           <>
-            {/* Terminal output hero with success glow */}
+            {/* Answer reveal — success */}
             <div className="text-center py-4">
-              <div className="animate-success-glow inline-block rounded-xl bg-[#1e1e24] px-8 py-5 text-left">
-                <div className="flex items-center gap-2 mb-3">
-                  <Terminal className="size-3.5 text-green-500/70" />
-                  <span className="text-[11px] text-green-500/70 uppercase tracking-wider font-medium">
-                    Output
-                  </span>
-                </div>
-                <pre className="font-mono text-xl sm:text-2xl font-medium text-green-400 leading-relaxed whitespace-pre-wrap">
+              <div className="animate-result-success result-reveal result-reveal-success inline-block rounded-xl px-8 py-5">
+                <span className="result-label result-label-success block text-[10px] uppercase tracking-[0.08em] font-medium mb-1.5">
+                  Output
+                </span>
+                <pre className="font-mono text-[28px] sm:text-[32px] font-medium result-text-success leading-tight whitespace-pre-wrap">
                   {challenge.correct_answer}
                 </pre>
               </div>
@@ -525,16 +522,13 @@ export function CodeOutputPage() {
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground mb-4">The correct output was</p>
 
-              {/* Terminal output reveal — muted */}
+              {/* Answer reveal — failure */}
               {challenge.correct_answer && (
-                <div className="animate-fail-reveal inline-block rounded-xl bg-[#1e1e24] px-8 py-5 text-left">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Terminal className="size-3.5 text-neutral-500" />
-                    <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-medium">
-                      Output
-                    </span>
-                  </div>
-                  <pre className="font-mono text-xl sm:text-2xl font-medium text-neutral-300 leading-relaxed whitespace-pre-wrap">
+                <div className="animate-fail-reveal result-reveal result-reveal-fail inline-block rounded-xl px-8 py-5">
+                  <span className="result-label result-label-fail block text-[10px] uppercase tracking-[0.08em] font-medium mb-1.5">
+                    Output
+                  </span>
+                  <pre className="font-mono text-[28px] sm:text-[32px] font-medium text-foreground leading-tight whitespace-pre-wrap">
                     {challenge.correct_answer}
                   </pre>
                 </div>

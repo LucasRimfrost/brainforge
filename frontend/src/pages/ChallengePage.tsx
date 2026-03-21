@@ -27,7 +27,7 @@ import {
   Trophy,
   XCircle,
 } from "lucide-react";
-import { AttemptDots } from "@/components/AttemptDots";
+import { SegmentedProgressBar } from "@/components/SegmentedProgressBar";
 
 /** Extract arrow-separated sequences (e.g. "87 → 165 → 726 → ?") into visual pills */
 function parseDescription(description: string): { text: string; pills: string[] | null } {
@@ -311,16 +311,16 @@ export function ChallengePage() {
       {/* ── Unsolved ── */}
       {!done && (
         <>
-          {/* Attempt progress — centered */}
-          <div className="flex flex-col items-center gap-2.5">
-            <AttemptDots
+          {/* Attempt progress bar */}
+          <div className="flex flex-col gap-2">
+            <SegmentedProgressBar
               maxAttempts={challenge.max_attempts}
               attemptsUsed={challenge.attempts_used}
               isSolved={challenge.is_solved}
               guesses={guesses}
-              poppedDot={poppedDot}
+              animatingSegment={poppedDot}
             />
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground text-center">
               Attempt {Math.min(challenge.attempts_used + 1, challenge.max_attempts)} of {challenge.max_attempts}
             </p>
           </div>

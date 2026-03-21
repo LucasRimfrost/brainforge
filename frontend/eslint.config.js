@@ -19,5 +19,15 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'fetch',
+          message:
+            "Don't use bare fetch() — use rawFetch() or api() from @/api/client instead, so that auth headers and credentials are included automatically.",
+        },
+      ],
+    },
   },
 ])

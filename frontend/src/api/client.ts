@@ -21,15 +21,25 @@ const AUTH_PATHS = [
   "/api/v1/auth/me",
 ];
 
+async function rawFetch(path: string, options: RequestInit): Promise<Response> {
+  // eslint-disable-next-line no-restricted-globals
+  return fetch(path, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+      ...options.headers,
+    },
+  });
+}
+
 // Shared state for deduplicating concurrent refresh attempts
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function attemptRefresh(): Promise<boolean> {
   try {
-    const res = await fetch("/api/v1/auth/refresh", {
-      method: "POST",
-      credentials: "include",
-    });
+    const res = await rawFetch("/api/v1/auth/refresh", { method: "POST" });
     return res.ok;
   } catch {
     return false;
@@ -43,18 +53,6 @@ function doRefresh(): Promise<boolean> {
     });
   }
   return refreshInFlight;
-}
-
-async function rawFetch(path: string, options: RequestInit): Promise<Response> {
-  return fetch(path, {
-    ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Requested-With": "XMLHttpRequest",
-      ...options.headers,
-    },
-  });
 }
 
 export async function api<T>(

@@ -233,7 +233,11 @@
   .animate-success-glow,
   .animate-fail-reveal,
   .animate-toast-enter,
-  .animate-toast-exit {
+  .animate-toast-exit,
+  .animate-segment-fill,
+  .animate-segment-correct,
+  .animate-result-success,
+  .segment-current {
     animation: none !important;
   }
 }
@@ -251,6 +255,16 @@
 
 .animate-success-glow {
   animation: success-glow 1.2s ease-out, slide-up-fade 0.4s ease-out;
+}
+
+.animate-result-success {
+  animation: fail-reveal 0.3s ease-out, result-success-glow 1s ease-out;
+}
+
+@keyframes result-success-glow {
+  0% { box-shadow: 0 0 0 0 hsla(145, 40%, 55%, 0.4); }
+  40% { box-shadow: 0 0 16px 4px hsla(145, 40%, 55%, 0.15); }
+  100% { box-shadow: 0 0 0 0 hsla(145, 40%, 55%, 0); }
 }
 
 .animate-fail-reveal {
@@ -286,6 +300,128 @@
 /* Tooltip caret: clip to show only bottom-right triangle */
 .clip-caret {
   clip-path: polygon(100% 0, 0 100%, 100% 100%);
+}
+
+/* ── Segmented progress bar ── */
+
+.segment-unused {
+  background: hsl(30 10% 92%);
+  border: 1px solid hsl(30 10% 86%);
+  color: transparent;
+}
+.dark .segment-unused {
+  background: hsl(0 0% 18%);
+  border-color: hsl(0 0% 24%);
+}
+
+.segment-current {
+  background: hsl(30 10% 92%);
+  border: 1.5px solid hsl(30 12% 76%);
+  color: transparent;
+  animation: segment-pulse 2s ease-in-out infinite;
+}
+.dark .segment-current {
+  background: hsl(0 0% 18%);
+  border-color: hsl(0 0% 38%);
+}
+
+.segment-wrong {
+  background: hsl(345 22% 82%);
+  border: 1px solid hsl(345 18% 76%);
+  color: hsl(345 15% 45%);
+}
+.dark .segment-wrong {
+  background: hsl(345 18% 28%);
+  border-color: hsl(345 14% 35%);
+  color: hsl(345 15% 65%);
+}
+
+.segment-correct {
+  background: hsl(145 45% 55%);
+  border: 1px solid hsl(145 40% 48%);
+  color: hsl(145 60% 15%);
+}
+.dark .segment-correct {
+  background: hsl(145 40% 40%);
+  border-color: hsl(145 35% 34%);
+  color: hsl(145 40% 85%);
+}
+
+@keyframes segment-fill {
+  0% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes segment-correct-pop {
+  0% { opacity: 0.4; transform: scale(1); filter: brightness(1); }
+  40% { opacity: 1; transform: scale(1.02); filter: brightness(1.2); }
+  100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes segment-pulse {
+  0%, 100% { border-color: hsl(30 12% 76%); }
+  50% { border-color: hsl(30 15% 65%); }
+}
+.dark .segment-current {
+  animation-name: segment-pulse-dark;
+}
+@keyframes segment-pulse-dark {
+  0%, 100% { border-color: hsl(0 0% 38%); }
+  50% { border-color: hsl(0 0% 50%); }
+}
+
+.animate-segment-fill {
+  animation: segment-fill 0.3s ease-out;
+}
+
+.animate-segment-correct {
+  animation: segment-correct-pop 0.5s ease-out;
+}
+
+/* ── Result reveal (output answer display) ── */
+
+.result-reveal {
+  text-align: center;
+}
+
+.result-reveal-success {
+  background: hsl(145 30% 94%);
+  border: 1px solid hsl(145 30% 80%);
+}
+.dark .result-reveal-success {
+  background: hsl(145 20% 16%);
+  border-color: hsl(145 25% 30%);
+}
+
+.result-reveal-fail {
+  background: hsl(30 15% 95%);
+  border: 1px solid hsl(30 10% 85%);
+}
+.dark .result-reveal-fail {
+  background: hsl(0 0% 16%);
+  border-color: hsl(0 0% 24%);
+}
+
+.result-label-success {
+  color: hsl(145 35% 45%);
+}
+.dark .result-label-success {
+  color: hsl(145 30% 50%);
+}
+
+.result-label-fail {
+  color: hsl(30 10% 55%);
+}
+.dark .result-label-fail {
+  color: hsl(0 0% 50%);
+}
+
+.result-text-success {
+  color: hsl(145 45% 35%);
+}
+.dark .result-text-success {
+  color: hsl(145 40% 70%);
 }
 
 /* ── Code block: intentionally dark in both modes ── */
