@@ -5,17 +5,17 @@ export const difficultyConfig: Record<
   easy: {
     label: "Easy",
     class:
-      "bg-green-100 text-green-800 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20",
+      "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400",
   },
   medium: {
     label: "Medium",
     class:
-      "bg-amber-100 text-amber-800 border-amber-200 dark:bg-yellow-500/10 dark:text-yellow-400 dark:border-yellow-500/20",
+      "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
   },
   hard: {
     label: "Hard",
     class:
-      "bg-red-100 text-red-800 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
+      "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
   },
 };
 

@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -6,17 +7,8 @@ import {
   type FormEvent,
 } from "react";
 import { useParams } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { getArchive, getChallengeByDate, getToday, submitAnswer } from "@/api/trivia";
 import { ChallengeNav } from "@/components/ChallengeNav";
 import { toast } from "sonner";
@@ -26,7 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { difficultyConfig } from "@/lib/game";
 import {
-  CheckCircle,
+  ArrowRight,
   ClipboardCheck,
   Flame,
   Lightbulb,
@@ -36,6 +28,21 @@ import {
   XCircle,
 } from "lucide-react";
 import { AttemptDots } from "@/components/AttemptDots";
+
+/** Extract arrow-separated sequences (e.g. "87 → 165 → 726 → ?") into visual pills */
+function parseDescription(description: string): { text: string; pills: string[] | null } {
+  const arrowMatch = description.match(/((?:[\w?.,-]+\s*(?:→|->)\s*){2,}[\w?.,-]+)/);
+  if (arrowMatch) {
+    const seqStr = arrowMatch[1];
+    const pills = seqStr.split(/\s*(?:→|->)\s*/).filter(Boolean);
+    if (pills.length >= 3) {
+      let text = description.replace(seqStr, "").replace(/\s{2,}/g, " ").trim();
+      if (text.endsWith(":")) text = text.slice(0, -1).trim();
+      return { text: text || description, pills };
+    }
+  }
+  return { text: description, pills: null };
+}
 
 function generateShareText(challenge: Challenge): string {
   const pattern = Array.from({ length: challenge.attempts_used })
@@ -211,6 +218,8 @@ export function ChallengePage() {
     challenge.attempts_used >= challenge.max_attempts && !challenge.is_solved;
   const done = challenge.is_solved || exhausted;
   const diff = difficultyConfig[challenge.difficulty] ?? difficultyConfig.medium;
+  const remaining = challenge.max_attempts - challenge.attempts_used;
+  const { text: questionText, pills } = parseDescription(challenge.description);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -221,37 +230,57 @@ export function ChallengePage() {
           getArchive={getArchive}
         />
       )}
-      <Card>
-        {/* Header */}
-        <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <CardTitle className="text-xl leading-tight">
-                {challenge.title}
-              </CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {challenge.scheduled_date}
-              </p>
-            </div>
-            <Badge
-              variant="outline"
-              className={cn("shrink-0 capitalize", diff.class)}
-            >
-              {diff.label}
-            </Badge>
-          </div>
-        </CardHeader>
 
-        <CardContent className="grid gap-6">
-          {/* Description */}
-          <p className="leading-relaxed whitespace-pre-wrap">
-            {challenge.description}
-          </p>
+      <div className="rounded-2xl bg-card text-card-foreground border shadow-sm p-6 sm:p-8">
+      {/* Date */}
+      <p className="text-[13px] text-muted-foreground/60 mb-1.5">
+        {challenge.scheduled_date}
+      </p>
 
-          <Separator />
+      {/* Title + difficulty pill */}
+      <div className="flex items-center justify-between gap-3 mb-8">
+        <h1 className="text-[22px] font-medium leading-tight min-w-0">
+          {challenge.title}
+        </h1>
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
+            diff.class,
+          )}
+        >
+          {diff.label}
+        </span>
+      </div>
 
-          {/* Attempt indicators */}
-          <div className="flex flex-col items-center gap-3">
+      {/* Description */}
+      <p className="leading-relaxed text-foreground/90 whitespace-pre-wrap">
+        {questionText}
+      </p>
+
+      {/* Pill chain for arrow sequences */}
+      {pills && (
+        <div className="flex items-center gap-2 flex-wrap mt-4">
+          {pills.map((item, i) => (
+            <Fragment key={i}>
+              <span className="font-mono text-sm bg-muted px-3 py-1.5 rounded-full">
+                {item}
+              </span>
+              {i < pills.length - 1 && (
+                <ArrowRight className="size-3.5 text-muted-foreground/50" />
+              )}
+            </Fragment>
+          ))}
+        </div>
+      )}
+
+      {/* Thin divider */}
+      <div className="bg-border/50 my-8" style={{ height: "0.5px" }} />
+
+      {/* ── Unsolved ── */}
+      {!done && (
+        <>
+          {/* Attempts: dots left, remaining count right */}
+          <div className="flex items-center justify-between">
             <AttemptDots
               maxAttempts={challenge.max_attempts}
               attemptsUsed={challenge.attempts_used}
@@ -259,31 +288,26 @@ export function ChallengePage() {
               guesses={guesses}
               poppedDot={poppedDot}
             />
-            <p className="text-xs text-muted-foreground">
-              {done
-                ? challenge.is_solved
-                  ? `Solved in ${challenge.attempts_used} attempt${challenge.attempts_used === 1 ? "" : "s"}`
-                  : "No attempts remaining"
-                : `${challenge.max_attempts - challenge.attempts_used} attempt${challenge.max_attempts - challenge.attempts_used === 1 ? "" : "s"} remaining`}
-            </p>
+            <span className="text-sm text-muted-foreground">
+              {remaining} remaining
+            </span>
           </div>
 
-          {/* Hint status — locked message before 3 attempts */}
-          {!done && !hint && (
-            <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-              <Lightbulb className="size-3.5" />
+          {/* Hint unlock notice */}
+          {!hint && (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground/40 mt-2">
+              <Lightbulb className="size-3" />
               Hint unlocks after 3 failed attempts
             </p>
           )}
 
-          {/* Feedback after submission */}
-          {lastResult && !lastResult.is_correct && !done && (
+          {/* Feedback after incorrect submission */}
+          {lastResult && !lastResult.is_correct && (
             <div
               key={lastResult.attempt_number}
               className={cn(
-                "animate-slide-up-fade flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm font-medium",
+                "animate-slide-up-fade flex items-center gap-2 mt-5 text-sm text-destructive",
                 shaking && "animate-shake",
-                "bg-destructive/10 text-destructive",
               )}
             >
               <XCircle className="size-4 shrink-0" />
@@ -292,84 +316,22 @@ export function ChallengePage() {
             </div>
           )}
 
-          {/* End state: solved */}
-          {challenge.is_solved && (
-            <div className="animate-slide-up-fade rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-5 text-center">
-              <CheckCircle className="mx-auto mb-2 size-8 text-green-500" />
-              <p className="text-lg font-semibold text-green-700 dark:text-green-400">
-                Correct!
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Solved in {challenge.attempts_used} attempt
-                {challenge.attempts_used === 1 ? "" : "s"}
-              </p>
-              {!date && user && user.trivia_stats.current_streak > 0 && (
-                <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-medium">
-                  <Flame className="size-4 text-orange-500" />
-                  {user.trivia_stats.current_streak} day streak
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* End state: exhausted */}
-          {exhausted && (
-            <div className="animate-slide-up-fade rounded-lg border border-muted bg-muted/50 px-4 py-5 text-center">
-              <XCircle className="mx-auto mb-2 size-8 text-muted-foreground" />
-              <p className="text-lg font-semibold">Out of attempts</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Better luck tomorrow!
-              </p>
-            </div>
-          )}
-
-          {/* Correct answer reveal */}
-          {challenge.correct_answer && (
-            <div className="animate-slide-up-fade rounded-lg border bg-card px-4 py-3">
-              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                Answer
-              </p>
-              <p className="font-mono text-base font-semibold">
-                {challenge.correct_answer}
-              </p>
-            </div>
-          )}
-
-          {/* Share result button */}
-          {done && (
-            <div className="flex justify-center">
-              <Button variant="outline" size="sm" onClick={handleShare}>
-                {copied ? (
-                  <ClipboardCheck className="mr-2 size-4" />
-                ) : (
-                  <Share2 className="mr-2 size-4" />
-                )}
-                {copied ? "Copied!" : "Share Result"}
-              </Button>
-            </div>
-          )}
-
-          {/* Inline hint reveal (toggled by lightbulb button) */}
-          {!done && hint && hintVisible && (
-            <div className="animate-slide-up-fade flex items-start gap-2.5 rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-sm">
+          {/* Hint display */}
+          {hint && hintVisible && (
+            <div className="animate-slide-up-fade flex items-start gap-2.5 mt-5 text-sm">
               <Lightbulb className="mt-0.5 size-4 shrink-0 text-yellow-500" />
               <div>
                 <p className="mb-0.5 text-xs font-medium text-yellow-700 dark:text-yellow-400">
                   Hint
                 </p>
-                <p className="text-foreground">{hint}</p>
+                <p className="text-foreground/80">{hint}</p>
               </div>
             </div>
           )}
 
-          {/* Input form */}
-          {!done && (
-            <form
-              noValidate
-              onSubmit={handleSubmit}
-              className="grid gap-2"
-            >
-              <div className="flex items-center gap-2">
+          {/* Answer input */}
+          <form noValidate onSubmit={handleSubmit} className="mt-8">
+            <div className="flex items-center gap-2">
               <Input
                 ref={inputRef}
                 value={answer}
@@ -380,7 +342,7 @@ export function ChallengePage() {
                 placeholder="Type your answer..."
                 disabled={submitting}
                 autoComplete="off"
-                className="flex-1"
+                className="flex-1 font-mono"
                 aria-invalid={!!answerError || undefined}
               />
               {hint && (
@@ -400,47 +362,115 @@ export function ChallengePage() {
                   <Lightbulb className="size-4" />
                 </Button>
               )}
-              <Button
-                type="submit"
-                disabled={submitting}
-                size="lg"
-              >
+              <Button type="submit" disabled={submitting} size="lg">
                 {submitting ? (
                   <div className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
                 ) : (
                   <Send className="size-4" />
                 )}
               </Button>
-              </div>
-              {answerError && (
-                <p className="text-sm text-destructive">{answerError}</p>
-              )}
-            </form>
-          )}
-        </CardContent>
-
-        {/* Stats footer when done */}
-        {done && user && (
-          <CardFooter className="border-t">
-            <div className="flex w-full items-center justify-around text-center text-sm">
-              <div>
-                <p className="text-lg font-bold">{user.trivia_stats.total_solved}</p>
-                <p className="text-xs text-muted-foreground">Solved</p>
-              </div>
-              <Separator orientation="vertical" className="h-8" />
-              <div>
-                <p className="text-lg font-bold">{user.trivia_stats.current_streak}</p>
-                <p className="text-xs text-muted-foreground">Streak</p>
-              </div>
-              <Separator orientation="vertical" className="h-8" />
-              <div>
-                <p className="text-lg font-bold">{user.trivia_stats.longest_streak}</p>
-                <p className="text-xs text-muted-foreground">Best</p>
-              </div>
             </div>
-          </CardFooter>
-        )}
-      </Card>
+            {answerError && (
+              <p className="text-sm text-destructive mt-2">{answerError}</p>
+            )}
+          </form>
+        </>
+      )}
+
+      {/* ── Solved ── */}
+      {challenge.is_solved && (
+        <>
+          {/* Hero answer */}
+          <div className="animate-slide-up-fade text-center py-6">
+            <p className="text-[40px] font-medium font-mono leading-tight">
+              {challenge.correct_answer}
+            </p>
+            <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+              Solved in {challenge.attempts_used} attempt
+              {challenge.attempts_used === 1 ? "" : "s"}
+            </p>
+          </div>
+
+          {/* Streak badge */}
+          {!date && user && user.trivia_stats.current_streak > 0 && (
+            <p className="text-center text-sm text-muted-foreground mb-6">
+              <Flame className="inline size-4 text-orange-500 mr-1 -mt-0.5" />
+              {user.trivia_stats.current_streak} day streak
+            </p>
+          )}
+
+          {/* Stats */}
+          {user && (
+            <>
+              <div className="bg-border/50" style={{ height: "0.5px" }} />
+              <div className="grid grid-cols-3 text-center py-5">
+                <div>
+                  <p className="text-lg font-bold">{user.trivia_stats.total_solved}</p>
+                  <p className="text-xs text-muted-foreground">Solved</p>
+                </div>
+                <div
+                  className="border-border/50"
+                  style={{ borderLeftWidth: "0.5px", borderRightWidth: "0.5px", borderStyle: "solid" }}
+                >
+                  <p className="text-lg font-bold">{user.trivia_stats.current_streak}</p>
+                  <p className="text-xs text-muted-foreground">Streak</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold">{user.trivia_stats.longest_streak}</p>
+                  <p className="text-xs text-muted-foreground">Best</p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Share button */}
+          <Button
+            className="w-full mt-4 rounded-lg"
+            size="lg"
+            onClick={handleShare}
+          >
+            {copied ? (
+              <ClipboardCheck className="mr-2 size-4" />
+            ) : (
+              <Share2 className="mr-2 size-4" />
+            )}
+            {copied ? "Copied!" : "Share Result"}
+          </Button>
+        </>
+      )}
+
+      {/* ── Exhausted ── */}
+      {exhausted && (
+        <>
+          <div className="animate-slide-up-fade text-center py-6">
+            <XCircle className="mx-auto mb-3 size-8 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground mb-2">The answer was</p>
+            {challenge.correct_answer && (
+              <p className="text-[40px] font-medium font-mono leading-tight text-muted-foreground">
+                {challenge.correct_answer}
+              </p>
+            )}
+            <p className="text-sm text-muted-foreground mt-3">
+              Better luck tomorrow!
+            </p>
+          </div>
+
+          {/* Share button */}
+          <Button
+            className="w-full mt-4 rounded-lg"
+            size="lg"
+            onClick={handleShare}
+          >
+            {copied ? (
+              <ClipboardCheck className="mr-2 size-4" />
+            ) : (
+              <Share2 className="mr-2 size-4" />
+            )}
+            {copied ? "Copied!" : "Share Result"}
+          </Button>
+        </>
+      )}
+      </div>
     </div>
   );
 }

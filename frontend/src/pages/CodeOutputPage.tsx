@@ -7,17 +7,8 @@ import {
   type FormEvent,
 } from "react";
 import { useParams } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
   getArchive,
   getChallengeByDate,
@@ -33,7 +24,6 @@ import { cn } from "@/lib/utils";
 import { difficultyConfig, getLanguageLabel } from "@/lib/game";
 import {
   Check,
-  CheckCircle,
   ClipboardCheck,
   Copy,
   Flame,
@@ -238,6 +228,7 @@ export function CodeOutputPage() {
     challenge.attempts_used >= challenge.max_attempts && !challenge.is_solved;
   const done = challenge.is_solved || exhausted;
   const diff = difficultyConfig[challenge.difficulty] ?? difficultyConfig.medium;
+  const remaining = challenge.max_attempts - challenge.attempts_used;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -248,287 +239,311 @@ export function CodeOutputPage() {
           getArchive={getArchive}
         />
       )}
-      <Card>
-        {/* Header */}
-        <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <CardTitle className="text-xl leading-tight">
-                {challenge.title}
-              </CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {challenge.scheduled_date}
-              </p>
-            </div>
-            <Badge
-              variant="outline"
-              className={cn("shrink-0 capitalize", diff.class)}
-            >
-              {diff.label}
-            </Badge>
+
+      <div className="rounded-2xl bg-card text-card-foreground border shadow-sm p-6 sm:p-8">
+        {/* Date */}
+        <p className="text-[13px] text-muted-foreground/60 mb-1.5">
+          {challenge.scheduled_date}
+        </p>
+
+        {/* Title + language + difficulty */}
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h1 className="text-[22px] font-medium leading-tight">
+              {challenge.title}
+            </h1>
+            <span className="shrink-0 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-xs font-mono text-muted-foreground">
+              {getLanguageLabel(challenge.language)}
+            </span>
           </div>
-        </CardHeader>
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
+              diff.class,
+            )}
+          >
+            {diff.label}
+          </span>
+        </div>
 
-        <CardContent className="grid gap-6">
-          {/* Description */}
-          <p className="leading-relaxed">{challenge.description}</p>
+        {/* Description */}
+        <p className="leading-relaxed text-foreground/90 mb-6">
+          {challenge.description}
+        </p>
 
-          {/* Code snippet */}
-          <div className="code-block overflow-hidden rounded-2xl">
-            <div className="code-block-header flex items-center justify-between px-4 py-2">
-              <Badge
-                variant="outline"
-                className="border-neutral-600 bg-neutral-700 text-xs text-neutral-300"
-              >
-                {getLanguageLabel(challenge.language)}
-              </Badge>
-              <button
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(challenge.code_snippet);
-                    setCodeCopied(true);
-                    setTimeout(() => setCodeCopied(false), 2000);
-                  } catch {
-                    toast.error("Failed to copy code");
-                  }
-                }}
-                title="Copy code"
-                aria-label="Copy code"
-                className="rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-700 hover:text-neutral-300"
-              >
-                {codeCopied ? (
-                  <Check className="size-4 text-green-400" />
-                ) : (
-                  <Copy className="size-4" />
-                )}
-              </button>
-            </div>
-            <div className="overflow-x-auto p-4">
-              <pre className="text-sm leading-loose">
-                <code>
-                  {highlightedLines.map((line, i) => (
-                    <div key={i} className="flex">
-                      <span className="mr-6 inline-block w-6 select-none text-right text-neutral-600">
-                        {i + 1}
-                      </span>
-                      <span
-                        className="text-neutral-200"
-                        dangerouslySetInnerHTML={{ __html: line || " " }}
-                      />
-                    </div>
-                  ))}
-                </code>
-              </pre>
-            </div>
-          </div>
-
-          {/* Expected Output — directly below code when revealed */}
-          {challenge.correct_answer && (
-            <div className="code-block animate-slide-up-fade -mt-3 overflow-hidden rounded-2xl">
-              <div className="code-block-header px-4 py-2">
-                <p className="text-xs font-medium text-neutral-400">
-                  Expected Output
-                </p>
+        {/* Code snippet */}
+        <div className="code-block overflow-hidden rounded-2xl">
+          <div className="code-block-header flex items-center justify-between px-4 py-2.5">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <div className="size-2.5 rounded-full bg-red-500/60" />
+                <div className="size-2.5 rounded-full bg-yellow-500/60" />
+                <div className="size-2.5 rounded-full bg-green-500/60" />
               </div>
-              <pre className="p-4 text-sm text-green-400">
-                {challenge.correct_answer}
-              </pre>
+              <span className="text-xs text-muted-foreground">
+                {getLanguageLabel(challenge.language)}
+              </span>
             </div>
-          )}
-
-          {done ? (
-            <>
-              {/* Result status with attempt dots */}
-              {challenge.is_solved ? (
-                <div className="animate-slide-up-fade rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-5 text-center">
-                  <CheckCircle className="mx-auto mb-2 size-8 text-green-500" />
-                  <p className="text-lg font-semibold text-green-700 dark:text-green-400">
-                    Correct!
-                  </p>
-                  <div className="mt-2 flex justify-center">
-                    <AttemptDots
-                      maxAttempts={challenge.max_attempts}
-                      attemptsUsed={challenge.attempts_used}
-                      isSolved={challenge.is_solved}
-                      guesses={guesses}
-                      size="sm"
-                    />
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Solved in {challenge.attempts_used} attempt
-                    {challenge.attempts_used === 1 ? "" : "s"}
-                  </p>
-                  {!date && user && user.code_output_stats.current_streak > 0 && (
-                    <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-medium">
-                      <Flame className="size-4 text-orange-500" />
-                      {user.code_output_stats.current_streak} day streak
-                    </div>
-                  )}
-                </div>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(challenge.code_snippet);
+                  setCodeCopied(true);
+                  setTimeout(() => setCodeCopied(false), 2000);
+                } catch {
+                  toast.error("Failed to copy code");
+                }
+              }}
+              title="Copy code"
+              aria-label="Copy code"
+              className="rounded-md p-1.5 text-neutral-400 dark:text-neutral-500 transition-colors hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
+            >
+              {codeCopied ? (
+                <Check className="size-4 text-green-600 dark:text-green-400" />
               ) : (
-                <div className="animate-slide-up-fade rounded-lg border border-muted bg-muted/50 px-4 py-5 text-center">
-                  <XCircle className="mx-auto mb-2 size-8 text-muted-foreground" />
-                  <p className="text-lg font-semibold">Out of attempts</p>
-                  <div className="mt-2 flex justify-center">
-                    <AttemptDots
-                      maxAttempts={challenge.max_attempts}
-                      attemptsUsed={challenge.attempts_used}
-                      isSolved={false}
-                      guesses={guesses}
-                      size="sm"
+                <Copy className="size-4" />
+              )}
+            </button>
+          </div>
+          <div className="overflow-x-auto p-4">
+            <pre className="text-sm leading-loose">
+              <code>
+                {highlightedLines.map((line, i) => (
+                  <div key={i} className="flex">
+                    <span className="mr-6 inline-block w-6 select-none text-right text-neutral-400 dark:text-neutral-600">
+                      {i + 1}
+                    </span>
+                    <span
+                      className="text-neutral-800 dark:text-neutral-200"
+                      dangerouslySetInnerHTML={{ __html: line || " " }}
                     />
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Better luck tomorrow!
-                  </p>
-                </div>
-              )}
+                ))}
+              </code>
+            </pre>
+          </div>
+        </div>
 
-              {/* Share result button */}
-              <div className="flex justify-center">
-                <Button variant="outline" size="sm" onClick={handleShare}>
-                  {copied ? (
-                    <ClipboardCheck className="mr-2 size-4" />
+        {/* Thin divider */}
+        <div className="bg-border/50 my-8" style={{ height: "0.5px" }} />
+
+        {/* ── Unsolved ── */}
+        {!done && (
+          <>
+            {/* Attempts: dots left, remaining count right */}
+            <div className="flex items-center justify-between">
+              <AttemptDots
+                maxAttempts={challenge.max_attempts}
+                attemptsUsed={challenge.attempts_used}
+                isSolved={false}
+                guesses={guesses}
+                poppedDot={poppedDot}
+              />
+              <span className="text-sm text-muted-foreground">
+                {remaining} remaining
+              </span>
+            </div>
+
+            {/* Hint unlock notice */}
+            {!hint && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground/40 mt-2">
+                <Lightbulb className="size-3" />
+                Hint unlocks after 2 failed attempts
+              </p>
+            )}
+
+            {/* Feedback after incorrect submission */}
+            {lastResult && !lastResult.is_correct && (
+              <div
+                key={lastResult.attempt_number}
+                className={cn(
+                  "animate-slide-up-fade flex items-center gap-2 mt-5 text-sm text-destructive",
+                  shaking && "animate-shake",
+                )}
+              >
+                <XCircle className="size-4 shrink-0" />
+                Not quite. {lastResult.attempts_remaining} attempt
+                {lastResult.attempts_remaining === 1 ? "" : "s"} left.
+              </div>
+            )}
+
+            {/* Hint display */}
+            {hint && hintVisible && (
+              <div className="animate-slide-up-fade flex items-start gap-2.5 mt-5 text-sm">
+                <Lightbulb className="mt-0.5 size-4 shrink-0 text-yellow-500" />
+                <div>
+                  <p className="mb-0.5 text-xs font-medium text-yellow-700 dark:text-yellow-400">
+                    Hint
+                  </p>
+                  <p className="text-foreground/80">{hint}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Answer input */}
+            <form noValidate onSubmit={handleSubmit} className="mt-8">
+              <div className="flex items-center gap-2">
+                <Input
+                  ref={inputRef}
+                  value={answer}
+                  onChange={(e) => {
+                    setAnswer(e.target.value);
+                    setAnswerError("");
+                  }}
+                  placeholder="Type the expected output..."
+                  disabled={submitting}
+                  autoComplete="off"
+                  className="flex-1 font-mono"
+                  aria-invalid={!!answerError || undefined}
+                />
+                {hint && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    onClick={() => setHintVisible((v) => !v)}
+                    className={cn(
+                      "shrink-0",
+                      hintVisible
+                        ? "text-yellow-500"
+                        : "text-muted-foreground hover:text-yellow-500",
+                    )}
+                    aria-label={hintVisible ? "Hide hint" : "Show hint"}
+                  >
+                    <Lightbulb className="size-4" />
+                  </Button>
+                )}
+                <Button type="submit" disabled={submitting} size="lg">
+                  {submitting ? (
+                    <div className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
                   ) : (
-                    <Share2 className="mr-2 size-4" />
+                    <Send className="size-4" />
                   )}
-                  {copied ? "Copied!" : "Share Result"}
                 </Button>
               </div>
-            </>
-          ) : (
-            <>
-              <Separator />
-
-              {/* Attempt indicators (in-progress) */}
-              <div className="flex flex-col items-center gap-3">
-                <AttemptDots
-                  maxAttempts={challenge.max_attempts}
-                  attemptsUsed={challenge.attempts_used}
-                  isSolved={false}
-                  guesses={guesses}
-                  poppedDot={poppedDot}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {`${challenge.max_attempts - challenge.attempts_used} attempt${challenge.max_attempts - challenge.attempts_used === 1 ? "" : "s"} remaining`}
-                </p>
-              </div>
-
-              {/* Hint status */}
-              {!hint && (
-                <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                  <Lightbulb className="size-3.5" />
-                  Hint unlocks after 2 failed attempts
-                </p>
+              <p className="text-xs text-muted-foreground/50 mt-2">
+                Output is case-sensitive
+              </p>
+              {answerError && (
+                <p className="text-sm text-destructive mt-1">{answerError}</p>
               )}
+            </form>
+          </>
+        )}
 
-              {/* Feedback after submission */}
-              {lastResult && !lastResult.is_correct && (
-                <div
-                  key={lastResult.attempt_number}
-                  className={cn(
-                    "animate-slide-up-fade flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm font-medium",
-                    shaking && "animate-shake",
-                    "bg-destructive/10 text-destructive",
-                  )}
-                >
-                  <XCircle className="size-4 shrink-0" />
-                  Not quite. {lastResult.attempts_remaining} attempt
-                  {lastResult.attempts_remaining === 1 ? "" : "s"} left.
+        {/* ── Solved ── */}
+        {challenge.is_solved && (
+          <>
+            {/* Terminal output hero with success glow */}
+            <div className="text-center py-4">
+              <div className="animate-success-glow inline-block rounded-xl bg-[#1e1e24] px-8 py-5 text-left">
+                <div className="flex items-center gap-2 mb-3">
+                  <Terminal className="size-3.5 text-green-500/70" />
+                  <span className="text-[11px] text-green-500/70 uppercase tracking-wider font-medium">
+                    Output
+                  </span>
                 </div>
-              )}
-
-              {/* Inline hint reveal */}
-              {hint && hintVisible && (
-                <div className="animate-slide-up-fade flex items-start gap-2.5 rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-sm">
-                  <Lightbulb className="mt-0.5 size-4 shrink-0 text-yellow-500" />
-                  <div>
-                    <p className="mb-0.5 text-xs font-medium text-yellow-700 dark:text-yellow-400">
-                      Hint
-                    </p>
-                    <p className="text-foreground">{hint}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Input form */}
-              <form noValidate onSubmit={handleSubmit} className="grid gap-2">
-                <div className="flex items-center gap-2">
-                  <Input
-                    ref={inputRef}
-                    value={answer}
-                    onChange={(e) => {
-                      setAnswer(e.target.value);
-                      setAnswerError("");
-                    }}
-                    placeholder="Type the expected output..."
-                    disabled={submitting}
-                    autoComplete="off"
-                    className="flex-1 font-mono"
-                    aria-invalid={!!answerError || undefined}
-                  />
-                  {hint && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="lg"
-                      onClick={() => setHintVisible((v) => !v)}
-                      className={cn(
-                        "shrink-0",
-                        hintVisible
-                          ? "text-yellow-500"
-                          : "text-muted-foreground hover:text-yellow-500",
-                      )}
-                      aria-label={hintVisible ? "Hide hint" : "Show hint"}
-                    >
-                      <Lightbulb className="size-4" />
-                    </Button>
-                  )}
-                  <Button type="submit" disabled={submitting} size="lg">
-                    {submitting ? (
-                      <div className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
-                    ) : (
-                      <Send className="size-4" />
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Output is case-sensitive
-                </p>
-                {answerError && (
-                  <p className="text-sm text-destructive">{answerError}</p>
-                )}
-              </form>
-            </>
-          )}
-        </CardContent>
-
-        {/* Stats footer when done */}
-        {done && user && (
-          <CardFooter className="border-t">
-            <div className="flex w-full items-center justify-around text-center text-sm">
-              <div>
-                <p className="text-lg font-bold">{user.code_output_stats.total_solved}</p>
-                <p className="text-xs text-muted-foreground">Solved</p>
-              </div>
-              <Separator orientation="vertical" className="h-8" />
-              <div>
-                <p className="text-lg font-bold">
-                  {user.code_output_stats.current_streak}
-                </p>
-                <p className="text-xs text-muted-foreground">Streak</p>
-              </div>
-              <Separator orientation="vertical" className="h-8" />
-              <div>
-                <p className="text-lg font-bold">
-                  {user.code_output_stats.longest_streak}
-                </p>
-                <p className="text-xs text-muted-foreground">Best</p>
+                <pre className="font-mono text-xl sm:text-2xl font-medium text-green-400 leading-relaxed whitespace-pre-wrap">
+                  {challenge.correct_answer}
+                </pre>
               </div>
             </div>
-          </CardFooter>
+
+            <p className="text-sm text-green-600 dark:text-green-400 text-center mt-3">
+              Solved in {challenge.attempts_used} attempt
+              {challenge.attempts_used === 1 ? "" : "s"}
+            </p>
+
+            {/* Streak badge */}
+            {!date && user && user.code_output_stats.current_streak > 0 && (
+              <p className="text-center text-sm text-muted-foreground mt-2 mb-6">
+                <Flame className="inline size-4 text-orange-500 mr-1 -mt-0.5" />
+                {user.code_output_stats.current_streak} day streak
+              </p>
+            )}
+
+            {/* Stats */}
+            {user && (
+              <>
+                <div className="bg-border/50 mt-6" style={{ height: "0.5px" }} />
+                <div className="grid grid-cols-3 text-center py-5">
+                  <div>
+                    <p className="text-lg font-bold">{user.code_output_stats.total_solved}</p>
+                    <p className="text-xs text-muted-foreground">Solved</p>
+                  </div>
+                  <div
+                    className="border-border/50"
+                    style={{ borderLeftWidth: "0.5px", borderRightWidth: "0.5px", borderStyle: "solid" }}
+                  >
+                    <p className="text-lg font-bold">{user.code_output_stats.current_streak}</p>
+                    <p className="text-xs text-muted-foreground">Streak</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold">{user.code_output_stats.longest_streak}</p>
+                    <p className="text-xs text-muted-foreground">Best</p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Share button */}
+            <Button
+              className="w-full mt-4 rounded-lg"
+              size="lg"
+              onClick={handleShare}
+            >
+              {copied ? (
+                <ClipboardCheck className="mr-2 size-4" />
+              ) : (
+                <Share2 className="mr-2 size-4" />
+              )}
+              {copied ? "Copied!" : "Share Result"}
+            </Button>
+          </>
         )}
-      </Card>
+
+        {/* ── Exhausted ── */}
+        {exhausted && (
+          <>
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground mb-4">The correct output was</p>
+
+              {/* Terminal output reveal — muted */}
+              {challenge.correct_answer && (
+                <div className="animate-fail-reveal inline-block rounded-xl bg-[#1e1e24] px-8 py-5 text-left">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Terminal className="size-3.5 text-neutral-500" />
+                    <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-medium">
+                      Output
+                    </span>
+                  </div>
+                  <pre className="font-mono text-xl sm:text-2xl font-medium text-neutral-300 leading-relaxed whitespace-pre-wrap">
+                    {challenge.correct_answer}
+                  </pre>
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground mt-5">
+                Better luck tomorrow!
+              </p>
+            </div>
+
+            {/* Share button */}
+            <Button
+              className="w-full mt-4 rounded-lg"
+              size="lg"
+              onClick={handleShare}
+            >
+              {copied ? (
+                <ClipboardCheck className="mr-2 size-4" />
+              ) : (
+                <Share2 className="mr-2 size-4" />
+              )}
+              {copied ? "Copied!" : "Share Result"}
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -203,6 +203,25 @@
   animation: slide-up-fade 0.3s ease-out;
 }
 
+@keyframes success-glow {
+  0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5); }
+  40% { box-shadow: 0 0 24px 6px rgba(74, 222, 128, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+
+@keyframes fail-reveal {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-success-glow {
+  animation: success-glow 1.2s ease-out, slide-up-fade 0.4s ease-out;
+}
+
+.animate-fail-reveal {
+  animation: fail-reveal 0.4s ease-out;
+}
+
 @keyframes slide-in-left {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }
@@ -246,15 +265,15 @@
   border-bottom: 1px solid oklch(0.25 0 0);
 }
 
-/* Light mode: warm dark gray, recessed into the card */
+/* Light mode: warm light surface matching the card theme */
 html:not(.dark) .code-block {
-  background: #2a2a30;
-  border: 2px solid oklch(0.82 0.006 70);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.25);
+  background: oklch(0.965 0.005 85);
+  border: 1px solid oklch(0.905 0.008 80);
+  box-shadow: none;
 }
 html:not(.dark) .code-block-header {
-  background: #32323a;
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+  background: oklch(0.945 0.008 80);
+  border-bottom-color: oklch(0.905 0.008 80);
 }
 
 /* ── Syntax highlighting — Tomorrow Night palette ── */
@@ -298,3 +317,45 @@ html:not(.dark) .code-block-header {
 .code-block .token.regex { color: #8abeb7; }
 
 .code-block .token.important { color: #de935f; font-weight: bold; }
+
+/* ── Syntax highlighting — light mode: One Light palette ── */
+html:not(.dark) .code-block .token.comment,
+html:not(.dark) .code-block .token.prolog,
+html:not(.dark) .code-block .token.doctype,
+html:not(.dark) .code-block .token.cdata { color: #a0a1a7; font-style: italic; }
+
+html:not(.dark) .code-block .token.keyword,
+html:not(.dark) .code-block .token.tag { color: #a626a4; }
+
+html:not(.dark) .code-block .token.string,
+html:not(.dark) .code-block .token.attr-value,
+html:not(.dark) .code-block .token.char { color: #50a14f; }
+
+html:not(.dark) .code-block .token.number { color: #986801; }
+
+html:not(.dark) .code-block .token.boolean { color: #986801; }
+
+html:not(.dark) .code-block .token.function,
+html:not(.dark) .code-block .token.function-variable { color: #4078f2; }
+
+html:not(.dark) .code-block .token.class-name { color: #c18401; }
+
+html:not(.dark) .code-block .token.builtin { color: #4078f2; }
+
+html:not(.dark) .code-block .token.operator { color: #0184bc; }
+
+html:not(.dark) .code-block .token.punctuation { color: #383a42; }
+
+html:not(.dark) .code-block .token.variable { color: #e45649; }
+
+html:not(.dark) .code-block .token.property { color: #e45649; }
+
+html:not(.dark) .code-block .token.constant { color: #986801; }
+
+html:not(.dark) .code-block .token.decorator,
+html:not(.dark) .code-block .token.annotation,
+html:not(.dark) .code-block .token.attr-name { color: #c18401; }
+
+html:not(.dark) .code-block .token.regex { color: #0184bc; }
+
+html:not(.dark) .code-block .token.important { color: #986801; font-weight: bold; }
