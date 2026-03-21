@@ -71,8 +71,11 @@ export function ChallengePage() {
   const [copied, setCopied] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
   const [guesses, setGuesses] = useState<string[]>([]);
+  const [toastText, setToastText] = useState("");
+  const [toastExiting, setToastExiting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fetchIdRef = useRef(0);
+  const toastTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const fetchChallenge = useCallback(async () => {
     const id = ++fetchIdRef.current;
@@ -111,6 +114,9 @@ export function ChallengePage() {
   useEffect(() => {
     fetchChallenge();
   }, [fetchChallenge]);
+
+  // Clean up toast timers on unmount
+  useEffect(() => () => { toastTimersRef.current.forEach(clearTimeout); }, []);
 
   // Auto-focus input when challenge loads
   useEffect(() => {
@@ -166,9 +172,21 @@ export function ChallengePage() {
         // Out of attempts — refetch to get correct_answer
         fetchChallenge();
       } else {
-        // Incorrect — shake and update local state
+        // Incorrect — shake input and show auto-dismissing toast
         setShaking(true);
-        setTimeout(() => setShaking(false), 500);
+        setTimeout(() => setShaking(false), 650);
+
+        // Clear any pending toast timers
+        toastTimersRef.current.forEach(clearTimeout);
+        toastTimersRef.current = [];
+
+        // Show toast: enter → hold 2s → exit → cleanup
+        setToastExiting(false);
+        setToastText(`Not quite — ${result.attempts_remaining} attempt${result.attempts_remaining === 1 ? "" : "s"} left`);
+        toastTimersRef.current.push(
+          setTimeout(() => setToastExiting(true), 2000),
+          setTimeout(() => { setToastText(""); setToastExiting(false); }, 2450),
+        );
         setChallenge((c) =>
           c ? { ...c, attempts_used: result.attempt_number } : c,
         );
@@ -231,7 +249,7 @@ export function ChallengePage() {
         />
       )}
 
-      <div className="rounded-2xl bg-card text-card-foreground border shadow-sm p-6 sm:p-8">
+      <div className="relative rounded-2xl bg-card text-card-foreground border shadow-sm p-6 sm:p-8">
       {/* Date */}
       <p className="text-[13px] text-muted-foreground/60 mb-1.5">
         {challenge.scheduled_date}
@@ -276,11 +294,25 @@ export function ChallengePage() {
       {/* Thin divider */}
       <div className="bg-border/50 my-8" style={{ height: "0.5px" }} />
 
+      {/* ── Auto-dismissing toast ── */}
+      {toastText && (
+        <div className="pointer-events-none absolute inset-x-0 top-5 sm:top-6 z-10 flex justify-center">
+          <div
+            className={cn(
+              "pointer-events-auto whitespace-nowrap rounded-full bg-foreground text-background px-5 py-2.5 text-sm font-medium shadow-lg",
+              toastExiting ? "animate-toast-exit" : "animate-toast-enter",
+            )}
+          >
+            {toastText}
+          </div>
+        </div>
+      )}
+
       {/* ── Unsolved ── */}
       {!done && (
         <>
-          {/* Attempts: dots left, remaining count right */}
-          <div className="flex items-center justify-between">
+          {/* Attempt progress — centered */}
+          <div className="flex flex-col items-center gap-2.5">
             <AttemptDots
               maxAttempts={challenge.max_attempts}
               attemptsUsed={challenge.attempts_used}
@@ -288,50 +320,35 @@ export function ChallengePage() {
               guesses={guesses}
               poppedDot={poppedDot}
             />
-            <span className="text-sm text-muted-foreground">
-              {remaining} remaining
-            </span>
+            <p className="text-sm text-muted-foreground">
+              Attempt {Math.min(challenge.attempts_used + 1, challenge.max_attempts)} of {challenge.max_attempts}
+            </p>
           </div>
 
           {/* Hint unlock notice */}
           {!hint && (
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground/40 mt-2">
+            <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/40 mt-3">
               <Lightbulb className="size-3" />
               Hint unlocks after 3 failed attempts
             </p>
           )}
 
-          {/* Feedback after incorrect submission */}
-          {lastResult && !lastResult.is_correct && (
-            <div
-              key={lastResult.attempt_number}
-              className={cn(
-                "animate-slide-up-fade flex items-center gap-2 mt-5 text-sm text-destructive",
-                shaking && "animate-shake",
-              )}
-            >
-              <XCircle className="size-4 shrink-0" />
-              Not quite. {lastResult.attempts_remaining} attempt
-              {lastResult.attempts_remaining === 1 ? "" : "s"} left.
-            </div>
-          )}
-
           {/* Hint display */}
           {hint && hintVisible && (
-            <div className="animate-slide-up-fade flex items-start gap-2.5 mt-5 text-sm">
-              <Lightbulb className="mt-0.5 size-4 shrink-0 text-yellow-500" />
-              <div>
-                <p className="mb-0.5 text-xs font-medium text-yellow-700 dark:text-yellow-400">
+            <div className="animate-slide-up-fade mt-6 rounded-xl bg-yellow-500/[0.06] border border-yellow-500/10 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="size-4 shrink-0 text-yellow-500" />
+                <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400">
                   Hint
                 </p>
-                <p className="text-foreground/80">{hint}</p>
               </div>
+              <p className="mt-1.5 text-sm text-foreground/80 ml-6">{hint}</p>
             </div>
           )}
 
           {/* Answer input */}
           <form noValidate onSubmit={handleSubmit} className="mt-8">
-            <div className="flex items-center gap-2">
+            <div className={cn("flex items-center gap-2", shaking && "animate-shake")}>
               <Input
                 ref={inputRef}
                 value={answer}

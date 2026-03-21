@@ -23,7 +23,7 @@ export function AttemptDots({
   const [activeDot, setActiveDot] = useState<number | null>(null);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       {Array.from({ length: maxAttempts }).map((_, i) => {
         const used = i < attemptsUsed;
         const isWinning = isSolved && i === attemptsUsed - 1;
@@ -32,13 +32,13 @@ export function AttemptDots({
 
         let dotColor: string;
         if (!used) {
-          dotColor = "bg-muted ring-1 ring-border";
+          dotColor = "bg-foreground/20 ring-1 ring-foreground/10";
         } else if (isWinning) {
           dotColor =
             "bg-[#6EBF8B] shadow-[0_0_6px_rgba(110,191,139,0.4)]";
         } else {
           dotColor =
-            "bg-[#E08B8B] shadow-[0_0_4px_rgba(224,139,139,0.3)]";
+            "bg-[#C9A455] shadow-[0_0_4px_rgba(201,164,85,0.25)]";
         }
 
         const sizeClass = size === "sm" ? "size-3" : "size-4";
@@ -69,7 +69,7 @@ export function AttemptDots({
                     <span
                       className={cn(
                         "font-medium font-mono",
-                        isWinning ? "text-[#4da36a]" : "text-[#d06060]",
+                        isWinning ? "text-[#4da36a]" : "text-foreground/70",
                       )}
                     >
                       {guess}
