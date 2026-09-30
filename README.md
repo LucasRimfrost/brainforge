@@ -13,7 +13,7 @@ A daily programming challenge platform where users solve trivia questions and pr
 
 ## Tech stack
 
-**Backend** -- Rust (Axum, SQLx, Argon2, jsonwebtoken, tower-governor)
+**Backend** -- Rust (Axum, SQLx, Argon2, tower-governor)
 
 - Workspace with four crates: `api`, `db`, `auth`, `shared`
 - Compile-time checked SQL queries via SQLx
