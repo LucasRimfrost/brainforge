@@ -134,3 +134,24 @@ async fn auth_body_limit_rejects_oversized_payload() {
 
     assert_eq!(resp.status(), 413);
 }
+
+// ── CSRF ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+#[serial]
+async fn state_changing_request_without_x_requested_with_returns_403() {
+    let app = common::TestApp::spawn().await;
+
+    // A plain client does not send the X-Requested-With header
+    let resp = reqwest::Client::new()
+        .post(app.url("/api/v1/auth/login"))
+        .json(&serde_json::json!({
+            "email": "test@example.com",
+            "password": "password123",
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 403);
+}
