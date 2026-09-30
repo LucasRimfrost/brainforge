@@ -36,7 +36,7 @@ impl TestApp {
         configure(&mut config);
         let config = Arc::new(config);
 
-        let pool = create_pool(&config.database_url)
+        let pool = create_pool(&config)
             .await
             .expect("Failed to connect to test database");
 

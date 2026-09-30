@@ -26,7 +26,10 @@ pub enum ConfigError {
 ///
 /// Optional variables: `STATIC_DIR` (enables SPA file serving),
 /// `CORS_ORIGIN` (defaults to `http://localhost:3000`),
-/// `TRUST_PROXY_HEADERS` (defaults to `false`; see [`Config::trust_proxy_headers`]).
+/// `TRUST_PROXY_HEADERS` (defaults to `false`; see [`Config::trust_proxy_headers`]),
+/// `DB_MAX_CONNECTIONS` (default 10), `DB_MIN_CONNECTIONS` (default 2),
+/// `DB_STATEMENT_TIMEOUT_MS` (default 5000; `0` disables),
+/// `REQUEST_TIMEOUT_SECS` (default 10).
 #[derive(Clone)]
 pub struct Config {
     pub database_url: String,
@@ -40,6 +43,15 @@ pub struct Config {
     /// `X-Real-IP`, or `Forwarded`. Only safe behind a reverse proxy that
     /// overwrites those headers; otherwise the real socket address is used.
     pub trust_proxy_headers: bool,
+    /// Maximum number of pooled database connections.
+    pub db_max_connections: u32,
+    /// Number of database connections the pool keeps open when idle.
+    pub db_min_connections: u32,
+    /// Postgres `statement_timeout` for pooled connections, in milliseconds
+    /// (`0` disables it). Also bounds lock waits.
+    pub db_statement_timeout_ms: u64,
+    /// Maximum time to handle a request before responding 503.
+    pub request_timeout_secs: u64,
 }
 
 impl fmt::Debug for Config {
@@ -52,6 +64,10 @@ impl fmt::Debug for Config {
             .field("static_dir", &self.static_dir)
             .field("cors_origin", &self.cors_origin)
             .field("trust_proxy_headers", &self.trust_proxy_headers)
+            .field("db_max_connections", &self.db_max_connections)
+            .field("db_min_connections", &self.db_min_connections)
+            .field("db_statement_timeout_ms", &self.db_statement_timeout_ms)
+            .field("request_timeout_secs", &self.request_timeout_secs)
             .finish()
     }
 }
@@ -85,6 +101,24 @@ impl Config {
                     source: e,
                 })?
                 .unwrap_or(false),
+            db_max_connections: parse_or("DB_MAX_CONNECTIONS", 10)?,
+            db_min_connections: parse_or("DB_MIN_CONNECTIONS", 2)?,
+            db_statement_timeout_ms: parse_or("DB_STATEMENT_TIMEOUT_MS", 5000)?,
+            request_timeout_secs: parse_or("REQUEST_TIMEOUT_SECS", 10)?,
         })
     }
+}
+
+/// Parses an optional integer environment variable, falling back to `default`
+/// when it is unset.
+fn parse_or<T: std::str::FromStr<Err = ParseIntError>>(
+    name: &'static str,
+    default: T,
+) -> Result<T, ConfigError> {
+    env::var(name)
+        .ok()
+        .map(|v| v.trim().parse())
+        .transpose()
+        .map_err(|e| ConfigError::InvalidInt { name, source: e })
+        .map(|v| v.unwrap_or(default))
 }

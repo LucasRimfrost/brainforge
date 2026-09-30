@@ -3,6 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use api::{AppState, routes};
 use db::connection;
 use shared::config::Config;
+use sqlx::{Connection, PgConnection};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Entry point: loads config, connects to the database, and starts the HTTP server.
@@ -13,14 +14,20 @@ async fn main() {
 
     let config = Config::from_env().expect("Failed to load configuration");
 
-    let pool = connection::create_pool(&config.database_url)
+    // Migrations run on their own connection, without the pool's
+    // statement_timeout, so long-running ones (e.g. index builds) aren't cut off.
+    let mut migrate_conn = PgConnection::connect(&config.database_url)
         .await
-        .expect("Failed to connect to database");
-
+        .expect("Failed to connect to database for migrations");
     sqlx::migrate!()
-        .run(&pool)
+        .run(&mut migrate_conn)
         .await
         .expect("Failed to run migrations");
+    migrate_conn.close().await.ok();
+
+    let pool = connection::create_pool(&config)
+        .await
+        .expect("Failed to connect to database");
 
     let addr = format!("{}:{}", config.host, config.port);
     let state = AppState {

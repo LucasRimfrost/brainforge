@@ -1,9 +1,16 @@
-use axum::{Router, extract::DefaultBodyLimit, http::header, middleware};
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    http::{StatusCode, header},
+    middleware,
+};
+use std::time::Duration;
 use tower_governor::GovernorLayer;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
+    timeout::TimeoutLayer,
 };
 
 use axum::routing::{get, patch, post};
@@ -90,6 +97,11 @@ pub fn router(state: AppState) -> Router {
     }
 
     app
+        // ── Request timeout (innermost, so the 503 is still logged) ─
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::SERVICE_UNAVAILABLE,
+            Duration::from_secs(state.config.request_timeout_secs),
+        ))
         // ── Observability (outermost → innermost) ───────────────────
         .layer(logging::sensitive_headers_layer())
         .layer(logging::trace_layer())
