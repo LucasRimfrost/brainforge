@@ -495,3 +495,72 @@ async fn login_with_missing_fields_returns_422() {
 
     assert_eq!(resp.status(), 422);
 }
+
+// ── Password reset tokens ───────────────────────────────────────────────────
+
+/// Insert a valid (30 min) reset token for `user_id` and return the raw token.
+async fn insert_reset_token(app: &common::TestApp, user_id: uuid::Uuid) -> String {
+    let raw_token = auth::token::generate_token();
+    sqlx::query(
+        "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, now() + interval '30 minutes')",
+    )
+    .bind(user_id)
+    .bind(auth::token::hash_token(&raw_token))
+    .execute(&app.pool)
+    .await
+    .expect("Failed to insert reset token");
+    raw_token
+}
+
+#[tokio::test]
+#[serial]
+async fn concurrent_resets_with_same_token_succeed_only_once() {
+    let app = common::TestApp::spawn().await;
+    let body = app.register_and_login().await;
+    let user_id: uuid::Uuid = body["id"].as_str().unwrap().parse().unwrap();
+    let token = insert_reset_token(&app, user_id).await;
+
+    let reset = |password: &'static str| {
+        app.client
+            .post(app.url("/api/v1/auth/reset-password"))
+            .json(&json!({ "token": token, "new_password": password }))
+            .send()
+    };
+    let (a, b) = tokio::join!(reset("new-password-a"), reset("new-password-b"));
+    let mut statuses = [a.unwrap().status().as_u16(), b.unwrap().status().as_u16()];
+    statuses.sort();
+
+    assert_eq!(
+        statuses,
+        [200, 400],
+        "a reset token must only be usable once"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn password_change_revokes_outstanding_reset_tokens() {
+    let app = common::TestApp::spawn().await;
+    let body = app.register_and_login().await;
+    let user_id: uuid::Uuid = body["id"].as_str().unwrap().parse().unwrap();
+    let token = insert_reset_token(&app, user_id).await;
+
+    let resp = app
+        .client
+        .patch(app.url("/api/v1/auth/password"))
+        .json(&json!({ "current_password": "password123", "new_password": "changed-password" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+
+    let resp = app
+        .client
+        .post(app.url("/api/v1/auth/reset-password"))
+        .json(&json!({ "token": token, "new_password": "attacker-password" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400);
+}

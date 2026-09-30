@@ -149,13 +149,16 @@ pub async fn update_email(pool: &PgPool, user_id: Uuid, email: &str) -> AppResul
     Ok(user)
 }
 
-/// Replaces a user's password hash.
+/// Replaces a user's password hash and revokes any outstanding (unused)
+/// password-reset tokens, in a single transaction.
 #[tracing::instrument(skip(pool, password_hash))]
 pub async fn update_user_password(
     pool: &PgPool,
     user_id: Uuid,
     password_hash: &str,
 ) -> AppResult<()> {
+    let mut tx = pool.begin().await.map_err(AppError::from)?;
+
     sqlx::query!(
         r#"
         UPDATE users
@@ -165,9 +168,24 @@ pub async fn update_user_password(
         user_id,
         password_hash,
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(AppError::from)?;
+
+    // A reset link issued before the change must not be able to undo it.
+    sqlx::query!(
+        r#"
+        UPDATE password_reset_tokens
+        SET used_at = now()
+        WHERE user_id = $1 AND used_at IS NULL
+        "#,
+        user_id,
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(AppError::from)?;
+
+    tx.commit().await.map_err(AppError::from)?;
 
     tracing::info!(%user_id, "user password updated");
     Ok(())

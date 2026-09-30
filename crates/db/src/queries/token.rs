@@ -91,6 +91,11 @@ pub async fn mark_password_reset_token_used(pool: &PgPool, token_id: Uuid) -> Ap
 /// deletes all of the user's sessions — all within a single transaction.
 ///
 /// Prevents partial state corruption if the server crashes mid-sequence.
+///
+/// # Errors
+///
+/// Returns [`AppError::BadRequest`] if the token was already used or has
+/// expired by the time it is claimed (e.g. a concurrent reset won the race).
 #[tracing::instrument(skip(pool, password_hash))]
 pub async fn reset_password_atomic(
     pool: &PgPool,
@@ -100,7 +105,30 @@ pub async fn reset_password_atomic(
 ) -> AppResult<()> {
     let mut tx = pool.begin().await.map_err(AppError::from)?;
 
-    // 1. Update the password.
+    // 1. Claim the reset token. The row lock makes a concurrent reset with the
+    //    same token wait, then find `used_at` set and claim nothing.
+    let claimed = sqlx::query_scalar!(
+        r#"
+        UPDATE password_reset_tokens
+        SET used_at = now()
+        WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > now()
+        RETURNING id
+        "#,
+        token_id,
+        user_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(AppError::from)?;
+
+    if claimed.is_none() {
+        tracing::warn!(%token_id, "password reset failed — token already used or expired");
+        return Err(AppError::BadRequest(
+            "Invalid or expired reset token".to_string(),
+        ));
+    }
+
+    // 2. Update the password.
     sqlx::query!(
         r#"
         UPDATE users
@@ -109,19 +137,6 @@ pub async fn reset_password_atomic(
         "#,
         user_id,
         password_hash,
-    )
-    .execute(&mut *tx)
-    .await
-    .map_err(AppError::from)?;
-
-    // 2. Mark the reset token as used.
-    sqlx::query!(
-        r#"
-        UPDATE password_reset_tokens
-        SET used_at = now()
-        WHERE id = $1 AND used_at IS NULL
-        "#,
-        token_id,
     )
     .execute(&mut *tx)
     .await
