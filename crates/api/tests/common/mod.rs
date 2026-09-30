@@ -1,17 +1,19 @@
 #![allow(dead_code)]
 
 use api::{AppState, routes};
+use auth::jwt::JwtKeys;
 use db::connection::create_pool;
 use shared::config::Config;
 use sqlx::PgPool;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 
 pub struct TestApp {
     pub addr: SocketAddr,
     pub pool: PgPool,
     pub client: reqwest::Client,
-    config: Config,
+    config: Arc<Config>,
 }
 
 impl TestApp {
@@ -25,7 +27,7 @@ impl TestApp {
         // Load .env.test from the workspace root
         dotenvy::from_filename(".env.test").ok();
 
-        let config = Config::from_env().expect("Failed to load test config");
+        let config = Arc::new(Config::from_env().expect("Failed to load test config"));
 
         let pool = create_pool(&config.database_url)
             .await
@@ -35,7 +37,11 @@ impl TestApp {
 
         let state = AppState {
             pool: pool.clone(),
-            config: config.clone(),
+            config: Arc::clone(&config),
+            jwt: Arc::new(JwtKeys::new(
+                config.jwt_secret.as_bytes(),
+                config.jwt_access_token_expiry_minutes,
+            )),
         };
 
         let router = routes::router(state);

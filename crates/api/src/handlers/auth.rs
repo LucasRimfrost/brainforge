@@ -594,11 +594,7 @@ async fn issue_tokens(
     axum_extra::extract::cookie::Cookie<'static>,
 )> {
     // Access token (short-lived JWT in cookie)
-    let access_token = auth::jwt::create_access_token(
-        &user_id.to_string(),
-        &state.config.jwt_secret,
-        state.config.jwt_access_token_expiry_minutes,
-    )?;
+    let access_token = state.jwt.create_access_token(&user_id.to_string())?;
 
     // Refresh token (long-lived random string, hash stored in DB)
     let raw_refresh = auth::token::generate_refresh_token();
@@ -608,8 +604,7 @@ async fn issue_tokens(
 
     create_refresh_token(&state.pool, user_id, &refresh_hash, expires_at).await?;
 
-    let access_cookie =
-        build_access_cookie(access_token, state.config.jwt_access_token_expiry_minutes);
+    let access_cookie = build_access_cookie(access_token, state.jwt.expiry_minutes());
     let refresh_cookie = build_refresh_cookie(raw_refresh, state.config.refresh_token_expiry_days);
 
     Ok((access_cookie, refresh_cookie))

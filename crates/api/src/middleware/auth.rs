@@ -1,4 +1,3 @@
-use auth::jwt;
 use axum::extract::FromRequestParts;
 use axum_extra::extract::CookieJar;
 use shared::error::AppError;
@@ -34,7 +33,7 @@ impl FromRequestParts<AppState> for AuthUser {
 
         let token = cookie.value();
 
-        let claims = jwt::validate_token(token, &state.config.jwt_secret)?;
+        let claims = state.jwt.validate_token(token)?;
 
         let user_id = Uuid::parse_str(&claims.sub).map_err(|e| {
             tracing::error!(

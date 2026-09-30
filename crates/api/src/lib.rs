@@ -1,5 +1,8 @@
 //! HTTP API crate — handlers, middleware, and route definitions.
 
+use std::sync::Arc;
+
+use auth::jwt::JwtKeys;
 use shared::config::Config;
 use sqlx::PgPool;
 
@@ -11,5 +14,6 @@ pub mod routes;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
-    pub config: Config,
+    pub config: Arc<Config>,
+    pub jwt: Arc<JwtKeys>,
 }

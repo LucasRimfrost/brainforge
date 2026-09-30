@@ -18,7 +18,7 @@ import {
 import { ChallengeNav } from "@/components/ChallengeNav";
 import { toast } from "sonner";
 import { ApiRequestError } from "@/api/client";
-import type { CodeOutputChallenge, SubmitResponse } from "@/api/types";
+import type { CodeOutputChallenge } from "@/api/types";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { difficultyConfig, getLanguageLabel } from "@/lib/game";
@@ -59,7 +59,6 @@ export function CodeOutputPage() {
   const [loadError, setLoadError] = useState("");
   const [answer, setAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [lastResult, setLastResult] = useState<SubmitResponse | null>(null);
   const [shaking, setShaking] = useState(false);
   const [poppedDot, setPoppedDot] = useState(-1);
   const [hint, setHint] = useState<string | null>(null);
@@ -92,7 +91,6 @@ export function CodeOutputPage() {
     setLoading(true);
     setLoadError("");
     setChallenge(null);
-    setLastResult(null);
     setHint(null);
     setHintVisible(false);
     setAnswer("");
@@ -159,7 +157,6 @@ export function CodeOutputPage() {
     }
 
     setSubmitting(true);
-    setLastResult(null);
 
     try {
       const trimmed = answer.trim();
@@ -168,7 +165,6 @@ export function CodeOutputPage() {
         answer: trimmed,
         challenge_id: challenge.id,
       });
-      setLastResult(result);
       setAnswer("");
 
       if (result.hint) setHint(result.hint);
@@ -247,7 +243,6 @@ export function CodeOutputPage() {
     challenge.attempts_used >= challenge.max_attempts && !challenge.is_solved;
   const done = challenge.is_solved || exhausted;
   const diff = difficultyConfig[challenge.difficulty] ?? difficultyConfig.medium;
-  const remaining = challenge.max_attempts - challenge.attempts_used;
 
   return (
     <div className="mx-auto max-w-2xl">

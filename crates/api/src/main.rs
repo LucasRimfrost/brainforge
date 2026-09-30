@@ -1,6 +1,7 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
 use api::{AppState, routes};
+use auth::jwt::JwtKeys;
 use db::connection;
 use shared::config::Config;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -23,7 +24,15 @@ async fn main() {
         .expect("Failed to run migrations");
 
     let addr = format!("{}:{}", config.host, config.port);
-    let state = AppState { pool, config };
+    let jwt = Arc::new(JwtKeys::new(
+        config.jwt_secret.as_bytes(),
+        config.jwt_access_token_expiry_minutes,
+    ));
+    let state = AppState {
+        pool,
+        config: Arc::new(config),
+        jwt,
+    };
     let router = routes::router(state);
 
     let listener = tokio::net::TcpListener::bind(&addr)

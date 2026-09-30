@@ -13,7 +13,7 @@ import { getArchive, getChallengeByDate, getToday, submitAnswer } from "@/api/tr
 import { ChallengeNav } from "@/components/ChallengeNav";
 import { toast } from "sonner";
 import { ApiRequestError } from "@/api/client";
-import type { Challenge, SubmitResponse } from "@/api/types";
+import type { Challenge } from "@/api/types";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { difficultyConfig } from "@/lib/game";
@@ -64,7 +64,6 @@ export function ChallengePage() {
   const [loadError, setLoadError] = useState("");
   const [answer, setAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [lastResult, setLastResult] = useState<SubmitResponse | null>(null);
   const [shaking, setShaking] = useState(false);
   const [poppedDot, setPoppedDot] = useState(-1);
   const [hint, setHint] = useState<string | null>(null);
@@ -83,7 +82,6 @@ export function ChallengePage() {
     setLoading(true);
     setLoadError("");
     setChallenge(null);
-    setLastResult(null);
     setHint(null);
     setHintVisible(false);
     setAnswer("");
@@ -147,7 +145,6 @@ export function ChallengePage() {
     }
 
     setSubmitting(true);
-    setLastResult(null);
 
     try {
       const trimmed = answer.trim();
@@ -156,7 +153,6 @@ export function ChallengePage() {
         answer: trimmed,
         challenge_id: challenge.id,
       });
-      setLastResult(result);
       setAnswer("");
 
       if (result.hint) setHint(result.hint);
@@ -237,7 +233,6 @@ export function ChallengePage() {
     challenge.attempts_used >= challenge.max_attempts && !challenge.is_solved;
   const done = challenge.is_solved || exhausted;
   const diff = difficultyConfig[challenge.difficulty] ?? difficultyConfig.medium;
-  const remaining = challenge.max_attempts - challenge.attempts_used;
   const { text: questionText, pills } = parseDescription(challenge.description);
 
   return (
