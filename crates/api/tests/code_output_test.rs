@@ -664,3 +664,54 @@ async fn submit_for_future_challenge_returns_404() {
 
     assert_eq!(resp.status(), 404);
 }
+
+// ── Hint gating on GET ──────────────────────────────────────────────────────
+
+#[tokio::test]
+#[serial]
+async fn get_withholds_hint_until_unlocked() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    let today = chrono::Utc::now().date_naive();
+    let challenge_id = app.seed_today_code_output_challenge().await;
+    sqlx::query("UPDATE code_output_challenges SET hint = 'Slices skip index 0' WHERE id = $1")
+        .bind(challenge_id)
+        .execute(&app.pool)
+        .await
+        .unwrap();
+
+    for attempt in 0..=2 {
+        if attempt > 0 {
+            app.client
+                .post(app.url("/api/v1/code-output/submit"))
+                .json(&json!({ "challenge_id": challenge_id, "answer": "wrong" }))
+                .send()
+                .await
+                .unwrap();
+        }
+
+        for path in [
+            "/api/v1/code-output/today".to_string(),
+            format!("/api/v1/code-output/{today}"),
+        ] {
+            let body: serde_json::Value = app
+                .client
+                .get(app.url(&path))
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+            if attempt < 2 {
+                assert!(
+                    body["hint"].is_null(),
+                    "{path}: hint leaked after {attempt} attempts"
+                );
+            } else {
+                assert_eq!(body["hint"], "Slices skip index 0", "{path}");
+            }
+        }
+    }
+}

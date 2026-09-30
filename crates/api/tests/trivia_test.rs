@@ -628,3 +628,56 @@ async fn submit_for_future_challenge_returns_404() {
 
     assert_eq!(resp.status(), 404);
 }
+
+// ── Hint gating on GET ──────────────────────────────────────────────────────
+
+#[tokio::test]
+#[serial]
+async fn get_withholds_hint_until_unlocked() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    let today = chrono::Utc::now().date_naive();
+    let challenge_id = app
+        .seed_challenge("Hint Test", "What is 2+2?", "easy", "4", 5, today)
+        .await;
+    sqlx::query("UPDATE trivia_challenges SET hint = 'Think simple math' WHERE id = $1")
+        .bind(challenge_id)
+        .execute(&app.pool)
+        .await
+        .unwrap();
+
+    for attempt in 0..=3 {
+        if attempt > 0 {
+            app.client
+                .post(app.url("/api/v1/trivia/submit"))
+                .json(&json!({ "challenge_id": challenge_id, "answer": "wrong" }))
+                .send()
+                .await
+                .unwrap();
+        }
+
+        for path in [
+            "/api/v1/trivia/today".to_string(),
+            format!("/api/v1/trivia/{today}"),
+        ] {
+            let body: serde_json::Value = app
+                .client
+                .get(app.url(&path))
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+            if attempt < 3 {
+                assert!(
+                    body["hint"].is_null(),
+                    "{path}: hint leaked after {attempt} attempts"
+                );
+            } else {
+                assert_eq!(body["hint"], "Think simple math", "{path}");
+            }
+        }
+    }
+}

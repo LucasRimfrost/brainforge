@@ -29,6 +29,9 @@ fn normalize_output(s: &str) -> String {
         .replace(": ", ":")
 }
 
+/// Number of attempts after which the hint is revealed.
+const HINT_AFTER_ATTEMPTS: i32 = 2;
+
 // ── Request types ──────────────────────────────────────────────────────────
 
 /// Payload for `POST /code-output/submit`.
@@ -146,7 +149,9 @@ pub async fn today(
             language: challenge.language,
             code_snippet: challenge.code_snippet,
             difficulty: challenge.difficulty,
-            hint: challenge.hint,
+            hint: challenge
+                .hint
+                .filter(|_| attempts_used >= HINT_AFTER_ATTEMPTS),
             max_attempts: challenge.max_attempts,
             scheduled_date: challenge.scheduled_date,
             attempts_used,
@@ -210,7 +215,7 @@ pub async fn submit(
 
     let attempt_number = submission.attempt_number;
     let attempts_remaining = challenge.max_attempts - attempt_number;
-    let hint = if !is_correct && attempt_number >= 2 {
+    let hint = if !is_correct && attempt_number >= HINT_AFTER_ATTEMPTS {
         challenge.hint
     } else {
         None
@@ -314,7 +319,9 @@ pub async fn by_date(
             language: challenge.language,
             code_snippet: challenge.code_snippet,
             difficulty: challenge.difficulty,
-            hint: challenge.hint,
+            hint: challenge
+                .hint
+                .filter(|_| attempts_used >= HINT_AFTER_ATTEMPTS),
             max_attempts: challenge.max_attempts,
             scheduled_date: challenge.scheduled_date,
             attempts_used,

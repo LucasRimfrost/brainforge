@@ -21,6 +21,9 @@ use validator::Validate;
 
 use crate::{AppState, middleware::AuthUser};
 
+/// Number of attempts after which the hint is revealed.
+const HINT_AFTER_ATTEMPTS: i32 = 3;
+
 // ── Request types ──────────────────────────────────────────────────────────
 
 /// Payload for `POST /trivia/submit`.
@@ -132,7 +135,9 @@ pub async fn today(
             title: challenge.title,
             description: challenge.description,
             difficulty: challenge.difficulty,
-            hint: challenge.hint,
+            hint: challenge
+                .hint
+                .filter(|_| attempts_used >= HINT_AFTER_ATTEMPTS),
             max_attempts: challenge.max_attempts,
             scheduled_date: challenge.scheduled_date,
             attempts_used,
@@ -196,7 +201,7 @@ pub async fn submit(
 
     let attempt_number = submission.attempt_number;
     let attempts_remaining = challenge.max_attempts - attempt_number;
-    let hint = if !is_correct && attempt_number >= 3 {
+    let hint = if !is_correct && attempt_number >= HINT_AFTER_ATTEMPTS {
         challenge.hint
     } else {
         None
@@ -297,7 +302,9 @@ pub async fn by_date(
             title: challenge.title,
             description: challenge.description,
             difficulty: challenge.difficulty,
-            hint: challenge.hint,
+            hint: challenge
+                .hint
+                .filter(|_| attempts_used >= HINT_AFTER_ATTEMPTS),
             max_attempts: challenge.max_attempts,
             scheduled_date: challenge.scheduled_date,
             attempts_used,
