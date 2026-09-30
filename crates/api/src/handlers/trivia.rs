@@ -186,7 +186,7 @@ pub async fn submit(
         None
     };
 
-    // Atomic check-and-insert: locks the challenge row so concurrent
+    // Atomic check-and-insert: locks the user row so concurrent
     // requests cannot bypass the attempt limit.
     let submission = create_trivia_submission_atomic(
         &state.pool,

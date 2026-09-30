@@ -681,3 +681,101 @@ async fn get_withholds_hint_until_unlocked() {
         }
     }
 }
+
+// ── Submission locking ──────────────────────────────────────────────────────
+
+/// A submission in flight for one user must not block other users' submissions
+/// to the same (shared, daily) challenge.
+#[tokio::test]
+#[serial]
+async fn submit_is_not_blocked_by_other_users_in_flight_submission() {
+    let app = common::TestApp::spawn().await;
+    let user_a = app.register_and_login().await;
+    let user_a_id: uuid::Uuid = user_a["id"].as_str().unwrap().parse().unwrap();
+    let challenge_id = app.seed_today_challenge().await;
+    let submit_url = app.url("/api/v1/trivia/submit");
+
+    // User A's first attempt creates their stats row.
+    let resp = app
+        .client
+        .post(&submit_url)
+        .json(&json!({ "challenge_id": challenge_id, "answer": "wrong" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+
+    // Stall user A's next submission mid-transaction by locking their stats row.
+    let mut stall = app.pool.begin().await.unwrap();
+    sqlx::query("SELECT 1 FROM trivia_stats WHERE user_id = $1 FOR UPDATE")
+        .bind(user_a_id)
+        .execute(&mut *stall)
+        .await
+        .unwrap();
+    let a_submit = app
+        .client
+        .post(&submit_url)
+        .json(&json!({ "challenge_id": challenge_id, "answer": "wrong" }))
+        .send();
+    let a_task = tokio::spawn(a_submit);
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+    // User B submits to the same challenge while A's transaction is open.
+    let client_b = common::browser_client();
+    let resp = client_b
+        .post(app.url("/api/v1/auth/register"))
+        .json(&json!({ "username": "userb", "email": "b@example.com", "password": "password123" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+    let b_submit = client_b
+        .post(&submit_url)
+        .json(&json!({ "challenge_id": challenge_id, "answer": "4" }))
+        .send();
+    let resp = tokio::time::timeout(std::time::Duration::from_secs(3), b_submit)
+        .await
+        .expect("user B's submit was blocked by user A's in-flight submission")
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+
+    stall.rollback().await.unwrap();
+    assert_eq!(a_task.await.unwrap().unwrap().status(), 200);
+}
+
+/// Concurrent submissions from one user must still respect `max_attempts`.
+#[tokio::test]
+#[serial]
+async fn concurrent_submits_do_not_exceed_max_attempts() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+    let challenge_id = app.seed_today_challenge().await; // max_attempts = 3
+
+    let mut set = tokio::task::JoinSet::new();
+    for _ in 0..10 {
+        let req = app
+            .client
+            .post(app.url("/api/v1/trivia/submit"))
+            .json(&json!({ "challenge_id": challenge_id, "answer": "wrong" }));
+        set.spawn(async move { req.send().await.unwrap().status().as_u16() });
+    }
+    let statuses: Vec<u16> = set.join_all().await;
+
+    assert_eq!(
+        statuses.iter().filter(|&&s| s == 200).count(),
+        3,
+        "{statuses:?}"
+    );
+    assert!(
+        statuses.iter().all(|&s| s == 200 || s == 400),
+        "{statuses:?}"
+    );
+
+    let (rows,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM trivia_submissions WHERE challenge_id = $1")
+            .bind(challenge_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(rows, 3);
+}

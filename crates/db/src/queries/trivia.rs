@@ -135,8 +135,8 @@ pub async fn create_trivia_submission(
 
 /// Atomically validates attempt limits and records a trivia submission.
 ///
-/// Uses a transaction with `SELECT … FOR UPDATE` on the challenge row to
-/// serialise concurrent requests for the same (user, challenge) pair.
+/// Uses a transaction with a row lock on the user to serialise that user's
+/// concurrent requests, so the attempt limit can't be bypassed.
 /// Also increments the user's attempt counter and, when `solved_date` is
 /// provided, upserts their streak / solve stats.
 ///
@@ -158,10 +158,13 @@ pub async fn create_trivia_submission_atomic(
 ) -> AppResult<TriviaSubmission> {
     let mut tx = pool.begin().await.map_err(AppError::from)?;
 
-    // Lock the challenge row to serialise concurrent submissions.
+    // Lock the user's row to serialise this user's concurrent submissions.
+    // Locking the shared challenge row instead would serialise every user's
+    // submissions to the daily challenge. `NO KEY UPDATE` doesn't block
+    // foreign-key checks from other inserts referencing the user.
     let locked = sqlx::query_scalar!(
-        "SELECT id FROM trivia_challenges WHERE id = $1 FOR UPDATE",
-        challenge_id
+        "SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE",
+        user_id
     )
     .fetch_optional(&mut *tx)
     .await
