@@ -160,8 +160,12 @@ pub async fn submit(
         "trivia submission attempt"
     );
 
+    let today = Utc::now().date_naive();
+
+    // Future challenges are treated as nonexistent until their scheduled date.
     let challenge = find_trivia_challenge_by_id(&state.pool, challenge_id)
         .await?
+        .filter(|c| c.scheduled_date <= today)
         .ok_or_else(|| {
             tracing::warn!(challenge_id = %challenge_id, "trivia challenge not found");
             AppError::NotFound
@@ -171,7 +175,6 @@ pub async fn submit(
     let challenge_answer = challenge.expected_answer.trim().to_lowercase();
     let is_correct = user_answer == challenge_answer;
 
-    let today = Utc::now().date_naive();
     let solved_date = if is_correct && challenge.scheduled_date == today {
         Some(today)
     } else {
@@ -260,8 +263,12 @@ pub async fn by_date(
 ) -> AppResult<impl IntoResponse> {
     tracing::debug!(user_id = %auth_user.id, %date, "fetching trivia by date");
 
+    let today = Utc::now().date_naive();
+
+    // Future challenges are treated as nonexistent until their scheduled date.
     let challenge = find_trivia_challenge_by_date(&state.pool, date)
         .await?
+        .filter(|c| c.scheduled_date <= today)
         .ok_or_else(|| {
             tracing::warn!(%date, "no trivia challenge found for date");
             AppError::NotFound

@@ -587,3 +587,44 @@ async fn archive_does_not_include_today() {
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.as_array().unwrap().is_empty());
 }
+
+// ── Future challenges ───────────────────────────────────────────────────────
+
+#[tokio::test]
+#[serial]
+async fn by_date_returns_404_for_future_challenge() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    let tomorrow = chrono::Utc::now().date_naive() + chrono::Duration::days(1);
+    app.seed_challenge_for_date(tomorrow).await;
+
+    let resp = app
+        .client
+        .get(app.url(&format!("/api/v1/trivia/{tomorrow}")))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 404);
+}
+
+#[tokio::test]
+#[serial]
+async fn submit_for_future_challenge_returns_404() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    let tomorrow = chrono::Utc::now().date_naive() + chrono::Duration::days(1);
+    let challenge_id = app.seed_challenge_for_date(tomorrow).await;
+
+    let resp = app
+        .client
+        .post(app.url("/api/v1/trivia/submit"))
+        .json(&json!({ "challenge_id": challenge_id, "answer": "wrong" }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 404);
+}
