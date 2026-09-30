@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO ballpark_stats (user_id, current_streak, longest_streak, total_solved, last_solved_date)\n            VALUES ($1, 1, 1, 1, $2)\n            ON CONFLICT (user_id) DO UPDATE SET\n                current_streak = CASE\n                    WHEN ballpark_stats.last_solved_date = $2 THEN ballpark_stats.current_streak\n                    WHEN ballpark_stats.last_solved_date = $2 - 1 THEN ballpark_stats.current_streak + 1\n                    ELSE 1\n                END,\n                longest_streak = GREATEST(\n                    ballpark_stats.longest_streak,\n                    CASE\n                        WHEN ballpark_stats.last_solved_date = $2 THEN ballpark_stats.current_streak\n                        WHEN ballpark_stats.last_solved_date = $2 - 1 THEN ballpark_stats.current_streak + 1\n                        ELSE 1\n                    END\n                ),\n                total_solved = CASE\n                    WHEN ballpark_stats.last_solved_date = $2 THEN ballpark_stats.total_solved\n                    ELSE ballpark_stats.total_solved + 1\n                END,\n                last_solved_date = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9e0b1e40acf78ae98cc71e545ba20cf853027f92f212a9b9511263e4534449d3"
+}

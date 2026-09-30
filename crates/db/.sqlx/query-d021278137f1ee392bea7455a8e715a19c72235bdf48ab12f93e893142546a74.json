@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO ballpark_stats (user_id, total_attempts)\n        VALUES ($1, 1)\n        ON CONFLICT (user_id) DO UPDATE SET\n            total_attempts = ballpark_stats.total_attempts + 1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d021278137f1ee392bea7455a8e715a19c72235bdf48ab12f93e893142546a74"
+}

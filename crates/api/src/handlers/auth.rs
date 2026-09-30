@@ -7,7 +7,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use db::queries::{
     create_session, delete_all_user_sessions, delete_other_user_sessions, delete_session_by_hash,
-    find_code_output_stats, find_trivia_stats,
+    find_ballpark_stats, find_code_output_stats, find_trivia_stats,
 };
 use serde::{Deserialize, Serialize};
 use shared::error::{AppError, AppResult};
@@ -123,6 +123,7 @@ pub struct MeResponse {
     pub email: String,
     pub trivia_stats: StatsResponse,
     pub code_output_stats: StatsResponse,
+    pub ballpark_stats: StatsResponse,
 }
 
 /// Aggregate game statistics for a single user and game type.
@@ -342,6 +343,16 @@ pub async fn me(
         None => StatsResponse::default(),
     };
 
+    let ballpark_stats = match find_ballpark_stats(&state.pool, user_id).await? {
+        Some(s) => StatsResponse {
+            current_streak: s.current_streak,
+            longest_streak: s.longest_streak,
+            total_solved: s.total_solved,
+            total_attempts: s.total_attempts,
+        },
+        None => StatsResponse::default(),
+    };
+
     tracing::debug!(user_id = %user_id, "profile fetched");
 
     Ok((
@@ -352,6 +363,7 @@ pub async fn me(
             email: user.email,
             trivia_stats,
             code_output_stats,
+            ballpark_stats,
         }),
     ))
 }

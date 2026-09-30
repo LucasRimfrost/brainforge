@@ -216,6 +216,51 @@ impl TestApp {
         )
         .await
     }
+
+    /// Insert a ballpark challenge directly into the database.
+    /// Returns the challenge UUID.
+    pub async fn seed_ballpark_challenge(
+        &self,
+        title: &str,
+        answer: f64,
+        decimals: i16,
+        tolerance_pct: f64,
+        max_attempts: i32,
+        scheduled_date: chrono::NaiveDate,
+    ) -> uuid::Uuid {
+        let rec: (uuid::Uuid,) = sqlx::query_as(
+            "INSERT INTO ballpark_challenges (title, question, unit, answer, decimals, tolerance_pct,
+                                              difficulty, explanation, source_url, max_attempts, scheduled_date)
+             VALUES ($1, 'How many widgets are there?', 'widgets', $2, $3, $4,
+                     'medium', 'Because of widget science.', 'https://example.com/widgets', $5, $6)
+             RETURNING id",
+        )
+        .bind(title)
+        .bind(answer)
+        .bind(decimals)
+        .bind(tolerance_pct)
+        .bind(max_attempts)
+        .bind(scheduled_date)
+        .fetch_one(&self.pool)
+        .await
+        .expect("Failed to seed ballpark challenge");
+
+        rec.0
+    }
+
+    /// Seed a ballpark challenge for a specific date with the default rules
+    /// (5 attempts, ±10%) and a distinctive answer of `4321.5` at 1 decimal.
+    pub async fn seed_ballpark_challenge_for_date(&self, date: chrono::NaiveDate) -> uuid::Uuid {
+        self.seed_ballpark_challenge("Ballpark Test", 4321.5, 1, 10.0, 5, date)
+            .await
+    }
+
+    /// Seed today's ballpark challenge with the defaults of
+    /// [`TestApp::seed_ballpark_challenge_for_date`].
+    pub async fn seed_today_ballpark_challenge(&self) -> uuid::Uuid {
+        let today = chrono::Utc::now().date_naive();
+        self.seed_ballpark_challenge_for_date(today).await
+    }
 }
 
 /// Build a `reqwest::Client` that behaves like the frontend in a browser: it
@@ -252,6 +297,18 @@ pub fn session_cookie(resp: &reqwest::Response) -> String {
 /// Delete all data from every table, respecting foreign key order.
 /// Runs before each test so every test starts with a clean slate.
 async fn cleanup_db(pool: &PgPool) {
+    sqlx::query("DELETE FROM ballpark_submissions")
+        .execute(pool)
+        .await
+        .expect("Failed to clean ballpark_submissions");
+    sqlx::query("DELETE FROM ballpark_stats")
+        .execute(pool)
+        .await
+        .expect("Failed to clean ballpark_stats");
+    sqlx::query("DELETE FROM ballpark_challenges")
+        .execute(pool)
+        .await
+        .expect("Failed to clean ballpark_challenges");
     sqlx::query("DELETE FROM code_output_submissions")
         .execute(pool)
         .await

@@ -5,6 +5,7 @@
 //! into [`AppError`] variants (with unique-violation mapped to
 //! [`AppError::Conflict`]).
 
+mod ballpark;
 mod code_output;
 mod games;
 mod session;
@@ -12,6 +13,7 @@ mod token;
 mod trivia;
 mod user;
 
+pub use ballpark::*;
 pub use code_output::*;
 pub use games::*;
 pub use session::*;

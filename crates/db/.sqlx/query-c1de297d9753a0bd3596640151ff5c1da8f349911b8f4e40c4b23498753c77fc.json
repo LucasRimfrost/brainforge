@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT c.id, c.title,\n               c.difficulty as \"difficulty: Difficulty\",\n               c.scheduled_date, c.max_attempts,\n               COALESCE(bool_or(s.is_correct), false) as \"is_solved!\",\n               COUNT(s.id) as \"attempts_used!\"\n        FROM ballpark_challenges c\n        LEFT JOIN ballpark_submissions s ON s.challenge_id = c.id AND s.user_id = $1\n        WHERE c.scheduled_date < $2\n        GROUP BY c.id\n        ORDER BY c.scheduled_date DESC\n        LIMIT 365\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "difficulty: Difficulty",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "scheduled_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "max_attempts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_solved!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "attempts_used!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "c1de297d9753a0bd3596640151ff5c1da8f349911b8f4e40c4b23498753c77fc"
+}

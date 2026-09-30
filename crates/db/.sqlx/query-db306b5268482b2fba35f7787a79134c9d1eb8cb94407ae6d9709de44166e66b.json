@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT guess, feedback as \"feedback: Feedback\", error_pct, attempt_number\n        FROM ballpark_submissions\n        WHERE user_id = $1 AND challenge_id = $2\n        ORDER BY attempt_number\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "guess",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 1,
+        "name": "feedback: Feedback",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "error_pct",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "attempt_number",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "db306b5268482b2fba35f7787a79134c9d1eb8cb94407ae6d9709de44166e66b"
+}
