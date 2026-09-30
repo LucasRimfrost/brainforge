@@ -77,8 +77,17 @@ pub fn router(state: AppState) -> Router {
 
     let api_routes = routes.layer(middleware::from_fn(csrf::require_csrf_header));
 
-    let app = Router::new()
-        .nest("/api/v1", api_routes)
+    let mut app = Router::new().nest("/api/v1", api_routes);
+
+    // The SPA fallback must be mounted before the layers below, otherwise
+    // they (including CSP and the other security headers) don't apply to it.
+    if let Some(ref dir) = state.config.static_dir {
+        app = app.fallback_service(
+            ServeDir::new(dir).not_found_service(ServeFile::new(format!("{}/index.html", dir))),
+        );
+    }
+
+    app
         // ── Observability (outermost → innermost) ───────────────────
         .layer(logging::sensitive_headers_layer())
         .layer(logging::trace_layer())
@@ -118,14 +127,6 @@ pub fn router(state: AppState) -> Router {
             header::HeaderValue::from_static(
                 "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
             ),
-        ));
-
-    if let Some(ref dir) = state.config.static_dir {
-        app.fallback_service(
-            ServeDir::new(dir).not_found_service(ServeFile::new(format!("{}/index.html", dir))),
-        )
+        ))
         .with_state(state)
-    } else {
-        app.with_state(state)
-    }
 }

@@ -155,3 +155,35 @@ async fn state_changing_request_without_x_requested_with_returns_403() {
 
     assert_eq!(resp.status(), 403);
 }
+
+#[tokio::test]
+#[serial]
+async fn security_headers_are_present_on_spa_fallback() {
+    let dir = std::env::temp_dir().join(format!("brainforge-spa-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("index.html"), "<!doctype html><title>t</title>").unwrap();
+
+    let static_dir = dir.to_str().unwrap().to_string();
+    let app = common::TestApp::spawn_with(|c| c.static_dir = Some(static_dir)).await;
+
+    // Both a real file and an unknown SPA route (served via not_found_service)
+    for path in ["/index.html", "/trivia/2025-01-01"] {
+        let resp = app.client.get(app.url(path)).send().await.unwrap();
+
+        let headers = resp.headers();
+        assert!(
+            headers.get("content-security-policy").is_some(),
+            "{path}: no CSP"
+        );
+        assert_eq!(headers.get("x-frame-options").unwrap(), "DENY", "{path}");
+        assert_eq!(
+            headers.get("x-content-type-options").unwrap(),
+            "nosniff",
+            "{path}"
+        );
+        assert!(headers.get("strict-transport-security").is_some(), "{path}");
+        assert!(headers.get("referrer-policy").is_some(), "{path}");
+    }
+
+    std::fs::remove_dir_all(&dir).ok();
+}

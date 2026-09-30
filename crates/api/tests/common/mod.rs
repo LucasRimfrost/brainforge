@@ -23,10 +23,18 @@ impl TestApp {
     /// - Launches the real router (handlers, middleware, rate limiting, etc.)
     /// - Returns a `reqwest::Client` with a cookie jar (behaves like a browser)
     pub async fn spawn() -> Self {
+        Self::spawn_with(|_| {}).await
+    }
+
+    /// Like [`TestApp::spawn`], but lets the test adjust the loaded config
+    /// (e.g. set `static_dir`) before the router is built.
+    pub async fn spawn_with(configure: impl FnOnce(&mut Config)) -> Self {
         // Load .env.test from the workspace root
         dotenvy::from_filename(".env.test").ok();
 
-        let config = Arc::new(Config::from_env().expect("Failed to load test config"));
+        let mut config = Config::from_env().expect("Failed to load test config");
+        configure(&mut config);
+        let config = Arc::new(config);
 
         let pool = create_pool(&config.database_url)
             .await
