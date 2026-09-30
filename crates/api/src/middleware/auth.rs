@@ -5,8 +5,11 @@ use uuid::Uuid;
 
 use crate::AppState;
 
-/// Axum extractor that validates the `access_token` cookie and provides
-/// the authenticated user's ID.
+/// Name of the cookie carrying the opaque session token.
+pub const SESSION_COOKIE: &str = "session";
+
+/// Axum extractor that validates the `session` cookie against the `sessions`
+/// table and provides the authenticated user's ID and session ID.
 ///
 /// Add this to a handler's arguments to require authentication:
 ///
@@ -15,6 +18,7 @@ use crate::AppState;
 /// ```
 pub struct AuthUser {
     pub id: Uuid,
+    pub session_id: Uuid,
 }
 
 impl FromRequestParts<AppState> for AuthUser {
@@ -26,25 +30,24 @@ impl FromRequestParts<AppState> for AuthUser {
     ) -> Result<Self, Self::Rejection> {
         let jar = CookieJar::from_headers(&parts.headers);
 
-        let cookie = jar.get("access_token").ok_or_else(|| {
-            tracing::debug!("auth rejected — no access_token cookie");
+        let cookie = jar.get(SESSION_COOKIE).ok_or_else(|| {
+            tracing::debug!("auth rejected — no session cookie");
             AppError::Unauthorized
         })?;
 
-        let token = cookie.value();
+        let token_hash = auth::token::hash_refresh_token(cookie.value());
 
-        let claims = state.jwt.validate_token(token)?;
-
-        let user_id = Uuid::parse_str(&claims.sub).map_err(|e| {
-            tracing::error!(
-                error = %e,
-                sub = %claims.sub,
-                "auth rejected — malformed UUID in JWT sub claim"
-            );
-            AppError::Unauthorized
-        })?;
+        let (session_id, user_id) = db::queries::find_active_session(&state.pool, &token_hash)
+            .await?
+            .ok_or_else(|| {
+                tracing::debug!("auth rejected — unknown or expired session");
+                AppError::Unauthorized
+            })?;
 
         tracing::debug!(user_id = %user_id, "user authenticated");
-        Ok(AuthUser { id: user_id })
+        Ok(AuthUser {
+            id: user_id,
+            session_id,
+        })
     }
 }

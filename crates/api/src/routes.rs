@@ -20,20 +20,20 @@ pub fn router(state: AppState) -> Router {
     let limiters = RateLimiters::new(state.config.trust_proxy_headers);
     limiters.spawn_cleanup();
 
-    // Rate-limited auth routes (login, register, refresh, password reset)
+    // Rate-limited auth routes (login, register, password reset)
     let auth_strict = Router::new()
         .route("/register", post(handlers::auth::register))
         .route("/login", post(handlers::auth::login))
-        .route("/refresh", post(handlers::auth::refresh))
         .route("/forgot-password", post(handlers::auth::forgot_password))
         .route("/reset-password", post(handlers::auth::reset_password))
         .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(GovernorLayer::new(limiters.auth.clone()));
 
-    // Normal auth routes (me, logout, profile management) — only the global rate limiter applies
+    // Normal auth routes (me, logout, logout-all, profile management) — only the global rate limiter applies
     let auth_normal = Router::new()
         .route("/me", get(handlers::auth::me))
         .route("/logout", post(handlers::auth::logout))
+        .route("/logout-all", post(handlers::auth::logout_all))
         .route("/profile", patch(handlers::auth::update_profile))
         .route("/email", patch(handlers::auth::update_email))
         .route("/password", patch(handlers::auth::update_password));

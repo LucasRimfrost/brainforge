@@ -1,20 +1,22 @@
 use axum::{
-    Json, Router,
+    Json,
     extract::State,
     http::{StatusCode, header},
     response::{AppendHeaders, IntoResponse},
-    routing::{get, post},
 };
 use axum_extra::extract::CookieJar;
 use db::queries::{
-    create_refresh_token, find_code_output_stats, find_refresh_token_by_hash, find_trivia_stats,
-    revoke_all_user_refresh_tokens, revoke_refresh_token,
+    create_session, delete_all_user_sessions, delete_other_user_sessions, delete_session_by_hash,
+    find_code_output_stats, find_trivia_stats,
 };
 use serde::{Deserialize, Serialize};
 use shared::error::{AppError, AppResult};
 use validator::Validate;
 
-use crate::{AppState, middleware::AuthUser};
+use crate::{
+    AppState,
+    middleware::{AuthUser, auth::SESSION_COOKIE},
+};
 
 // ── Request types ───────────────────────────────────────────────────────────
 
@@ -118,18 +120,6 @@ pub struct StatsResponse {
     pub total_attempts: i32,
 }
 
-// ── Router ────────────────────────────────────────────────────────────────
-pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/register", post(register))
-        .route("/login", post(login))
-        .route("/logout", post(logout))
-        .route("/refresh", post(refresh))
-        .route("/forgot-password", post(forgot_password))
-        .route("/reset-password", post(reset_password))
-        .route("/me", get(me))
-}
-
 // ── Handlers ────────────────────────────────────────────────────────────────
 
 /// POST /api/v1/auth/register
@@ -154,14 +144,11 @@ pub async fn register(
 
     tracing::info!(user_id = %user.id, email = %user.email, "user registered");
 
-    let (access_cookie, refresh_cookie) = issue_tokens(&state, user.id).await?;
+    let session_cookie = issue_session(&state, user.id).await?;
 
     Ok((
         StatusCode::CREATED,
-        AppendHeaders([
-            (header::SET_COOKIE, access_cookie.to_string()),
-            (header::SET_COOKIE, refresh_cookie.to_string()),
-        ]),
+        AppendHeaders([(header::SET_COOKIE, session_cookie.to_string())]),
         Json(AuthResponse {
             id: user.id.to_string(),
             username: user.username,
@@ -202,82 +189,18 @@ pub async fn login(
         return Err(AppError::InvalidCredentials);
     }
 
-    let (access_cookie, refresh_cookie) = issue_tokens(&state, user.id).await?;
+    let session_cookie = issue_session(&state, user.id).await?;
 
     tracing::info!(user_id = %user.id, "login successful");
 
     Ok((
         StatusCode::OK,
-        AppendHeaders([
-            (header::SET_COOKIE, access_cookie.to_string()),
-            (header::SET_COOKIE, refresh_cookie.to_string()),
-        ]),
+        AppendHeaders([(header::SET_COOKIE, session_cookie.to_string())]),
         Json(AuthResponse {
             id: user.id.to_string(),
             username: user.username,
             email: user.email,
         }),
-    ))
-}
-
-/// POST /api/v1/auth/refresh
-///
-/// Validates the refresh token cookie, rotates it (revoke old, issue new),
-/// and returns a fresh access token. No request body needed.
-pub async fn refresh(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> AppResult<impl IntoResponse> {
-    // Extract refresh token from cookie
-    let refresh_cookie = jar.get("refresh_token").ok_or_else(|| {
-        tracing::debug!("refresh rejected — no refresh_token cookie");
-        AppError::Unauthorized
-    })?;
-
-    let raw_token = refresh_cookie.value();
-    let token_hash = auth::token::hash_refresh_token(raw_token);
-
-    // Look up the token in the database
-    let stored = find_refresh_token_by_hash(&state.pool, &token_hash)
-        .await?
-        .ok_or_else(|| {
-            tracing::warn!("refresh rejected — token not found in database");
-            AppError::Unauthorized
-        })?;
-
-    // Check if revoked
-    if stored.revoked_at.is_some() {
-        // Possible token reuse attack — revoke ALL tokens for this user
-        tracing::warn!(
-            user_id = %stored.user_id,
-            token_id = %stored.id,
-            "refresh token reuse detected — revoking all user tokens"
-        );
-        revoke_all_user_refresh_tokens(&state.pool, stored.user_id).await?;
-        return Err(AppError::Unauthorized);
-    }
-
-    // Check if expired
-    if stored.expires_at < chrono::Utc::now() {
-        tracing::debug!(user_id = %stored.user_id, "refresh rejected — token expired");
-        revoke_refresh_token(&state.pool, stored.id).await?;
-        return Err(AppError::Unauthorized);
-    }
-
-    // Revoke the old token (rotation)
-    revoke_refresh_token(&state.pool, stored.id).await?;
-
-    // Issue new token pair
-    let (access_cookie, refresh_cookie) = issue_tokens(&state, stored.user_id).await?;
-
-    tracing::info!(user_id = %stored.user_id, "tokens refreshed");
-
-    Ok((
-        StatusCode::OK,
-        AppendHeaders([
-            (header::SET_COOKIE, access_cookie.to_string()),
-            (header::SET_COOKIE, refresh_cookie.to_string()),
-        ]),
     ))
 }
 
@@ -436,28 +359,37 @@ pub async fn me(
 }
 
 /// POST /api/v1/auth/logout
+///
+/// Deletes the current session (if any) and clears the session cookie.
 pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> AppResult<impl IntoResponse> {
-    // Revoke the refresh token in the database if present.
-    if let Some(refresh_cookie) = jar.get("refresh_token") {
-        let token_hash = auth::token::hash_refresh_token(refresh_cookie.value());
-        if let Some(stored) = find_refresh_token_by_hash(&state.pool, &token_hash).await?
-            && stored.revoked_at.is_none()
-        {
-            revoke_refresh_token(&state.pool, stored.id).await?;
-        }
+    if let Some(session_cookie) = jar.get(SESSION_COOKIE) {
+        let token_hash = auth::token::hash_refresh_token(session_cookie.value());
+        delete_session_by_hash(&state.pool, &token_hash).await?;
     }
 
     tracing::info!("user logged out");
 
-    let access_cookie = build_logout_cookie("access_token", "/");
-    let refresh_cookie = build_logout_cookie("refresh_token", "/api/v1/auth");
+    Ok((
+        StatusCode::NO_CONTENT,
+        AppendHeaders([(header::SET_COOKIE, build_logout_cookie().to_string())]),
+    ))
+}
+
+/// POST /api/v1/auth/logout-all
+///
+/// Deletes every session belonging to the current user ("log out of all
+/// devices") and clears the session cookie.
+pub async fn logout_all(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+) -> AppResult<impl IntoResponse> {
+    delete_all_user_sessions(&state.pool, auth_user.id).await?;
+
+    tracing::info!(user_id = %auth_user.id, "user logged out of all devices");
 
     Ok((
         StatusCode::NO_CONTENT,
-        AppendHeaders([
-            (header::SET_COOKIE, access_cookie.to_string()),
-            (header::SET_COOKIE, refresh_cookie.to_string()),
-        ]),
+        AppendHeaders([(header::SET_COOKIE, build_logout_cookie().to_string())]),
     ))
 }
 
@@ -570,8 +502,8 @@ pub async fn update_password(
 
     db::queries::update_user_password(&state.pool, user_id, &hashed).await?;
 
-    // Revoke all refresh tokens — force re-login on other devices
-    revoke_all_user_refresh_tokens(&state.pool, user_id).await?;
+    // End all other sessions — force re-login on other devices, keep this one
+    delete_other_user_sessions(&state.pool, user_id, auth_user.session_id).await?;
 
     tracing::info!(%user_id, "password changed");
 
@@ -585,55 +517,34 @@ pub async fn update_password(
 
 // ── Private helpers ─────────────────────────────────────────────────────────
 
-/// Issue both an access token (JWT) and a refresh token (random + hashed in DB).
-/// Returns both cookies ready to be set on the response.
-async fn issue_tokens(
+/// Create a new session for the user and return the cookie carrying its token.
+///
+/// Only the SHA-256 hash of the random token is stored in the database.
+async fn issue_session(
     state: &AppState,
     user_id: uuid::Uuid,
-) -> AppResult<(
-    axum_extra::extract::cookie::Cookie<'static>,
-    axum_extra::extract::cookie::Cookie<'static>,
-)> {
-    // Access token (short-lived JWT in cookie)
-    let access_token = state.jwt.create_access_token(&user_id.to_string())?;
-
-    // Refresh token (long-lived random string, hash stored in DB)
-    let raw_refresh = auth::token::generate_refresh_token();
-    let refresh_hash = auth::token::hash_refresh_token(&raw_refresh);
+) -> AppResult<axum_extra::extract::cookie::Cookie<'static>> {
+    let raw_token = auth::token::generate_refresh_token();
+    let token_hash = auth::token::hash_refresh_token(&raw_token);
     let expires_at =
         chrono::Utc::now() + chrono::Duration::days(state.config.refresh_token_expiry_days);
 
-    create_refresh_token(&state.pool, user_id, &refresh_hash, expires_at).await?;
+    create_session(&state.pool, user_id, &token_hash, expires_at).await?;
 
-    let access_cookie = build_access_cookie(access_token, state.jwt.expiry_minutes());
-    let refresh_cookie = build_refresh_cookie(raw_refresh, state.config.refresh_token_expiry_days);
-
-    Ok((access_cookie, refresh_cookie))
+    Ok(build_session_cookie(
+        raw_token,
+        state.config.refresh_token_expiry_days,
+    ))
 }
 
-fn build_access_cookie(
-    token: String,
-    expiry_minutes: i64,
-) -> axum_extra::extract::cookie::Cookie<'static> {
-    use axum_extra::extract::cookie::{Cookie, SameSite};
-
-    Cookie::build(("access_token", token))
-        .path("/")
-        .http_only(true)
-        .same_site(SameSite::Strict)
-        .secure(!cfg!(debug_assertions))
-        .max_age(time::Duration::minutes(expiry_minutes))
-        .build()
-}
-
-fn build_refresh_cookie(
+fn build_session_cookie(
     token: String,
     expiry_days: i64,
 ) -> axum_extra::extract::cookie::Cookie<'static> {
     use axum_extra::extract::cookie::{Cookie, SameSite};
 
-    Cookie::build(("refresh_token", token))
-        .path("/api/v1/auth") // Only sent to auth endpoints, not every request
+    Cookie::build((SESSION_COOKIE, token))
+        .path("/")
         .http_only(true)
         .same_site(SameSite::Strict)
         .secure(!cfg!(debug_assertions))
@@ -641,11 +552,11 @@ fn build_refresh_cookie(
         .build()
 }
 
-fn build_logout_cookie(name: &str, path: &str) -> axum_extra::extract::cookie::Cookie<'static> {
+fn build_logout_cookie() -> axum_extra::extract::cookie::Cookie<'static> {
     use axum_extra::extract::cookie::{Cookie, SameSite};
 
-    Cookie::build((name.to_owned(), String::new()))
-        .path(path.to_owned())
+    Cookie::build((SESSION_COOKIE, String::new()))
+        .path("/")
         .http_only(true)
         .same_site(SameSite::Strict)
         .secure(!cfg!(debug_assertions))
