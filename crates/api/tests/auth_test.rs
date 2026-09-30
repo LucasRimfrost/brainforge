@@ -681,3 +681,154 @@ async fn profile_routes_reject_oversized_body() {
         .unwrap();
     assert_eq!(resp.status(), 413);
 }
+
+// ── Password reset flow ─────────────────────────────────────────────────────
+
+async fn reset(app: &common::TestApp, token: &str, new_password: &str) -> reqwest::Response {
+    app.client
+        .post(app.url("/api/v1/auth/reset-password"))
+        .json(&json!({ "token": token, "new_password": new_password }))
+        .send()
+        .await
+        .unwrap()
+}
+
+async fn forgot(app: &common::TestApp, email: &str) -> reqwest::Response {
+    app.client
+        .post(app.url("/api/v1/auth/forgot-password"))
+        .json(&json!({ "email": email }))
+        .send()
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+#[serial]
+async fn reset_password_changes_password_and_ends_all_sessions() {
+    let app = common::TestApp::spawn().await;
+    let body = app.register_and_login().await;
+    let user_id: uuid::Uuid = body["id"].as_str().unwrap().parse().unwrap();
+    let token = insert_reset_token(&app, user_id).await;
+
+    assert_eq!(
+        reset(&app, &token, "brand-new-password").await.status(),
+        200
+    );
+
+    // The session from registration is gone
+    let resp = app
+        .client
+        .get(app.url("/api/v1/auth/me"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 401);
+
+    assert_eq!(
+        app.login("test@example.com", "password123").await.status(),
+        401
+    );
+    assert_eq!(
+        app.login("test@example.com", "brand-new-password")
+            .await
+            .status(),
+        200
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn reset_token_cannot_be_reused() {
+    let app = common::TestApp::spawn().await;
+    let body = app.register_and_login().await;
+    let user_id: uuid::Uuid = body["id"].as_str().unwrap().parse().unwrap();
+    let token = insert_reset_token(&app, user_id).await;
+
+    assert_eq!(
+        reset(&app, &token, "first-new-password").await.status(),
+        200
+    );
+    assert_eq!(
+        reset(&app, &token, "second-new-password").await.status(),
+        400
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn expired_reset_token_is_rejected() {
+    let app = common::TestApp::spawn().await;
+    let body = app.register_and_login().await;
+    let user_id: uuid::Uuid = body["id"].as_str().unwrap().parse().unwrap();
+
+    let raw_token = auth::token::generate_token();
+    sqlx::query(
+        "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, now() - interval '1 minute')",
+    )
+    .bind(user_id)
+    .bind(auth::token::hash_token(&raw_token))
+    .execute(&app.pool)
+    .await
+    .unwrap();
+
+    assert_eq!(
+        reset(&app, &raw_token, "brand-new-password").await.status(),
+        400
+    );
+    assert_eq!(
+        app.login("test@example.com", "password123").await.status(),
+        200
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn unknown_reset_token_is_rejected() {
+    let app = common::TestApp::spawn().await;
+
+    let resp = reset(&app, &auth::token::generate_token(), "brand-new-password").await;
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+#[serial]
+async fn new_forgot_password_request_revokes_previous_token() {
+    let app = common::TestApp::spawn().await;
+    let body = app.register_and_login().await;
+    let user_id: uuid::Uuid = body["id"].as_str().unwrap().parse().unwrap();
+    let old_token = insert_reset_token(&app, user_id).await;
+
+    assert_eq!(forgot(&app, "test@example.com").await.status(), 200);
+
+    assert_eq!(
+        reset(&app, &old_token, "brand-new-password").await.status(),
+        400
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn forgot_password_response_does_not_reveal_whether_email_exists() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    let known = forgot(&app, "test@example.com").await;
+    let unknown = forgot(&app, "nobody@example.com").await;
+
+    assert_eq!(known.status(), 200);
+    assert_eq!(unknown.status(), 200);
+    let known: serde_json::Value = known.json().await.unwrap();
+    let unknown: serde_json::Value = unknown.json().await.unwrap();
+    assert_eq!(known, unknown);
+}
+
+#[tokio::test]
+#[serial]
+async fn password_reset_validation_errors_return_422() {
+    let app = common::TestApp::spawn().await;
+
+    assert_eq!(forgot(&app, "not-an-email").await.status(), 422);
+    let resp = reset(&app, &auth::token::generate_token(), "short").await;
+    assert_eq!(resp.status(), 422);
+}
