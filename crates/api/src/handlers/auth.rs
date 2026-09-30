@@ -11,6 +11,8 @@ use db::queries::{
 };
 use serde::{Deserialize, Serialize};
 use shared::error::{AppError, AppResult};
+use std::sync::{Arc, LazyLock};
+use tokio::sync::Semaphore;
 use validator::Validate;
 
 use crate::{
@@ -33,7 +35,11 @@ pub struct RegisterRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
 
-    #[validate(length(min = 8, message = "Password must be at least 8 characters long"))]
+    #[validate(length(
+        min = 8,
+        max = 128,
+        message = "Password must be between 8 and 128 characters"
+    ))]
     pub password: String,
 }
 
@@ -58,7 +64,11 @@ pub struct ForgotPasswordRequest {
 pub struct ResetPasswordRequest {
     pub token: String,
 
-    #[validate(length(min = 8, message = "Password must be at least 8 characters long"))]
+    #[validate(length(
+        min = 8,
+        max = 128,
+        message = "Password must be between 8 and 128 characters"
+    ))]
     pub new_password: String,
 }
 
@@ -87,7 +97,11 @@ pub struct UpdateEmailRequest {
 pub struct UpdatePasswordRequest {
     #[validate(length(min = 1, message = "Current password cannot be empty"))]
     pub current_password: String,
-    #[validate(length(min = 8, message = "New password must be at least 8 characters long"))]
+    #[validate(length(
+        min = 8,
+        max = 128,
+        message = "New password must be between 8 and 128 characters"
+    ))]
     pub new_password: String,
 }
 
@@ -132,12 +146,7 @@ pub async fn register(
     tracing::info!(email = %payload.email, username = %payload.username, "registration attempt");
 
     let password = payload.password.clone();
-    let hashed = tokio::task::spawn_blocking(move || auth::password::hash_password(&password))
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "password hashing task panicked");
-            AppError::InternalError
-        })??;
+    let hashed = hash_password_blocking(password).await?;
 
     let user =
         db::queries::create_user(&state.pool, &payload.username, &payload.email, &hashed).await?;
@@ -176,13 +185,7 @@ pub async fn login(
     let user_id = user.id;
     let password = payload.password.clone();
     let hash = user.password_hash.clone();
-    let is_valid =
-        tokio::task::spawn_blocking(move || auth::password::verify_password(&password, &hash))
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "password verification task panicked");
-                AppError::InternalError
-            })??;
+    let is_valid = verify_password_blocking(password, hash).await?;
 
     if !is_valid {
         tracing::warn!(user_id = %user_id, "login failed — wrong password");
@@ -289,12 +292,7 @@ pub async fn reset_password(
 
     // Hash the new password
     let new_password = payload.new_password.clone();
-    let hashed = tokio::task::spawn_blocking(move || auth::password::hash_password(&new_password))
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "password hashing task panicked");
-            AppError::InternalError
-        })??;
+    let hashed = hash_password_blocking(new_password).await?;
 
     // Atomically: update password + mark token used + delete all sessions.
     // Wrapped in a single transaction to prevent partial state on crash.
@@ -435,13 +433,7 @@ pub async fn update_email(
 
     let password = payload.current_password.clone();
     let hash = user.password_hash.clone();
-    let is_valid =
-        tokio::task::spawn_blocking(move || auth::password::verify_password(&password, &hash))
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "password verification task panicked");
-                AppError::InternalError
-            })??;
+    let is_valid = verify_password_blocking(password, hash).await?;
 
     if !is_valid {
         tracing::warn!(%user_id, "email update failed — wrong password");
@@ -479,13 +471,7 @@ pub async fn update_password(
 
     let current = payload.current_password.clone();
     let hash = user.password_hash.clone();
-    let is_valid =
-        tokio::task::spawn_blocking(move || auth::password::verify_password(&current, &hash))
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "password verification task panicked");
-                AppError::InternalError
-            })??;
+    let is_valid = verify_password_blocking(current, hash).await?;
 
     if !is_valid {
         tracing::warn!(%user_id, "password change failed — wrong current password");
@@ -493,12 +479,7 @@ pub async fn update_password(
     }
 
     let new_password = payload.new_password.clone();
-    let hashed = tokio::task::spawn_blocking(move || auth::password::hash_password(&new_password))
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "password hashing task panicked");
-            AppError::InternalError
-        })??;
+    let hashed = hash_password_blocking(new_password).await?;
 
     db::queries::update_user_password(&state.pool, user_id, &hashed).await?;
 
@@ -516,6 +497,51 @@ pub async fn update_password(
 }
 
 // ── Private helpers ─────────────────────────────────────────────────────────
+
+/// Caps concurrent Argon2 runs (each allocates ~19 MiB) at the number of CPUs,
+/// so a burst of password requests can't exhaust memory via the blocking pool.
+/// The permit moves into the blocking task, so it is held until the hash
+/// finishes even if the request is cancelled.
+static ARGON2_PERMITS: LazyLock<Arc<Semaphore>> = LazyLock::new(|| {
+    Arc::new(Semaphore::new(
+        std::thread::available_parallelism().map_or(4, |n| n.get()),
+    ))
+});
+
+/// Hashes a password with Argon2 on the blocking pool, bounded by [`ARGON2_PERMITS`].
+async fn hash_password_blocking(password: String) -> AppResult<String> {
+    let permit = Arc::clone(&ARGON2_PERMITS)
+        .acquire_owned()
+        .await
+        .map_err(|_| AppError::InternalError)?;
+    tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        auth::password::hash_password(&password)
+    })
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "password hashing task panicked");
+        AppError::InternalError
+    })?
+}
+
+/// Verifies a password against an Argon2 hash on the blocking pool, bounded by
+/// [`ARGON2_PERMITS`].
+async fn verify_password_blocking(password: String, hash: String) -> AppResult<bool> {
+    let permit = Arc::clone(&ARGON2_PERMITS)
+        .acquire_owned()
+        .await
+        .map_err(|_| AppError::InternalError)?;
+    tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        auth::password::verify_password(&password, &hash)
+    })
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "password verification task panicked");
+        AppError::InternalError
+    })?
+}
 
 /// Create a new session for the user and return the cookie carrying its token.
 ///

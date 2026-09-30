@@ -564,3 +564,120 @@ async fn password_change_revokes_outstanding_reset_tokens() {
         .unwrap();
     assert_eq!(resp.status(), 400);
 }
+
+// ── Password/email change hardening ─────────────────────────────────────────
+
+async fn send_n_patches(
+    app: &common::TestApp,
+    path: &str,
+    body: serde_json::Value,
+    n: usize,
+) -> Vec<u16> {
+    let mut statuses = Vec::new();
+    for _ in 0..n {
+        let resp = app
+            .client
+            .patch(app.url(path))
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        statuses.push(resp.status().as_u16());
+    }
+    statuses
+}
+
+#[tokio::test]
+#[serial]
+async fn password_change_is_rate_limited_like_login() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    let statuses = send_n_patches(
+        &app,
+        "/api/v1/auth/password",
+        json!({ "current_password": "wrong-password", "new_password": "new-password-1" }),
+        6,
+    )
+    .await;
+
+    assert!(
+        statuses.contains(&429),
+        "expected strict rate limit, got {statuses:?}"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn email_change_is_rate_limited_like_login() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    let statuses = send_n_patches(
+        &app,
+        "/api/v1/auth/email",
+        json!({ "new_email": "new@example.com", "current_password": "wrong-password" }),
+        6,
+    )
+    .await;
+
+    assert!(
+        statuses.contains(&429),
+        "expected strict rate limit, got {statuses:?}"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn new_password_longer_than_128_chars_returns_422() {
+    let app = common::TestApp::spawn().await;
+    let long = "a".repeat(129);
+
+    let resp = app.register("longpw", "longpw@example.com", &long).await;
+    assert_eq!(resp.status(), 422);
+
+    app.register_and_login().await;
+    let resp = app
+        .client
+        .patch(app.url("/api/v1/auth/password"))
+        .json(&json!({ "current_password": "password123", "new_password": long }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 422);
+}
+
+#[tokio::test]
+#[serial]
+async fn login_still_accepts_existing_long_password() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    // Simulate an account created before the 128-char cap existed.
+    let long = "b".repeat(200);
+    let hash = auth::password::hash_password(&long).unwrap();
+    sqlx::query("UPDATE users SET password_hash = $1 WHERE email = 'test@example.com'")
+        .bind(hash)
+        .execute(&app.pool)
+        .await
+        .unwrap();
+
+    let resp = app.login("test@example.com", &long).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[tokio::test]
+#[serial]
+async fn profile_routes_reject_oversized_body() {
+    let app = common::TestApp::spawn().await;
+    app.register_and_login().await;
+
+    let resp = app
+        .client
+        .patch(app.url("/api/v1/auth/profile"))
+        .json(&json!({ "username": "x".repeat(20 * 1024) }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 413);
+}
