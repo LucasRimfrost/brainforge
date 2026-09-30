@@ -177,7 +177,7 @@ pub async fn mark_password_reset_token_used(pool: &PgPool, token_id: Uuid) -> Ap
 }
 
 /// Atomically resets a user's password, marks the reset token as used, and
-/// revokes all refresh tokens — all within a single transaction.
+/// deletes all of the user's sessions — all within a single transaction.
 ///
 /// Prevents partial state corruption if the server crashes mid-sequence.
 #[tracing::instrument(skip(pool, password_hash))]
@@ -216,12 +216,11 @@ pub async fn reset_password_atomic(
     .await
     .map_err(AppError::from)?;
 
-    // 3. Revoke all refresh tokens — force re-login everywhere.
+    // 3. Delete all sessions — force re-login everywhere.
     sqlx::query!(
         r#"
-        UPDATE refresh_tokens
-        SET revoked_at = now()
-        WHERE user_id = $1 AND revoked_at IS NULL
+        DELETE FROM sessions
+        WHERE user_id = $1
         "#,
         user_id,
     )
