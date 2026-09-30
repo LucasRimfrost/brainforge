@@ -305,17 +305,18 @@ pub async fn forgot_password(
         db::queries::create_password_reset_token(&state.pool, user.id, &token_hash, expires_at)
             .await?;
 
-        // In production, send an email. For now, log the reset link.
-        let reset_link = format!("http://localhost:3000/reset-password?token={}", raw_token);
-
-        tracing::info!(
-            user_id = %user.id,
-            "password reset link generated (dev only): {}",
-            reset_link
-        );
-
-        // TODO: Replace with real email sending
+        // TODO: The reset link must be sent by email instead. A logged token is a
+        // working account-takeover link, so it is only logged in debug builds.
         // email::send_password_reset(&user.email, &reset_link).await?;
+        if cfg!(debug_assertions) {
+            let reset_link = format!("http://localhost:3000/reset-password?token={}", raw_token);
+
+            tracing::info!(
+                user_id = %user.id,
+                "password reset link generated (dev only): {}",
+                reset_link
+            );
+        }
     } else {
         tracing::debug!(email = %payload.email, "password reset for unknown email — ignoring silently");
     }
