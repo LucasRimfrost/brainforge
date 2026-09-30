@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
+import { Check, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
-import { updateProfile, updateEmail, updatePassword } from "@/api/auth";
+import { logoutAll, updateProfile, updateEmail, updatePassword } from "@/api/auth";
 import { ApiRequestError } from "@/api/client";
 
 function UsernameSection() {
@@ -275,6 +275,40 @@ function PasswordSection() {
   );
 }
 
+function SessionsSection() {
+  const { refresh } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleLogoutAll() {
+    setSubmitting(true);
+    try {
+      await logoutAll();
+      toast.success("Logged out of all devices");
+      // This session is gone too, so refresh() resolves to logged out and
+      // the protected route redirects to the login page.
+      await refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiRequestError ? err.message : "Something went wrong",
+      );
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="destructive"
+      disabled={submitting}
+      onClick={handleLogoutAll}
+      className="w-fit"
+    >
+      <LogOut className="mr-1.5 size-3.5" />
+      {submitting ? "Logging out..." : "Log out of all devices"}
+    </Button>
+  );
+}
+
 export function SettingsPage() {
   return (
     <div className="mx-auto max-w-lg space-y-8">
@@ -316,6 +350,18 @@ export function SettingsPage() {
         </CardHeader>
         <CardContent>
           <PasswordSection />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Sessions</CardTitle>
+          <CardDescription>
+            Sign out everywhere you are logged in, including this device
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SessionsSection />
         </CardContent>
       </Card>
     </div>

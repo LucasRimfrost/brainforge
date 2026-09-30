@@ -12,15 +12,6 @@ export class ApiRequestError extends Error {
   }
 }
 
-// Paths that should never trigger a token refresh.
-// /login, /refresh: avoids infinite loops
-// /me: this is an auth probe — useAuth handles its own refresh-then-retry
-const AUTH_PATHS = [
-  "/api/v1/auth/login",
-  "/api/v1/auth/refresh",
-  "/api/v1/auth/me",
-];
-
 async function rawFetch(path: string, options: RequestInit): Promise<Response> {
   // eslint-disable-next-line no-restricted-globals
   return fetch(path, {
@@ -34,43 +25,14 @@ async function rawFetch(path: string, options: RequestInit): Promise<Response> {
   });
 }
 
-// Shared state for deduplicating concurrent refresh attempts
-let refreshInFlight: Promise<boolean> | null = null;
-
-async function attemptRefresh(): Promise<boolean> {
-  try {
-    const res = await rawFetch("/api/v1/auth/refresh", { method: "POST" });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-function doRefresh(): Promise<boolean> {
-  if (!refreshInFlight) {
-    refreshInFlight = attemptRefresh().finally(() => {
-      refreshInFlight = null;
-    });
-  }
-  return refreshInFlight;
-}
-
 export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  let res = await rawFetch(path, options);
+  const res = await rawFetch(path, options);
 
-  // On 401, try refreshing the access token — unless the request is an auth endpoint
-  if (res.status === 401 && !AUTH_PATHS.some((p) => path.startsWith(p))) {
-    const refreshed = await doRefresh();
-    if (refreshed) {
-      res = await rawFetch(path, options);
-    }
-    // If refresh failed, fall through to the !res.ok check below.
-    // The caller gets a 401 ApiRequestError and decides what to do.
-  }
-
+  // Sessions are server-side, so there is nothing to refresh: a 401 is final
+  // and the caller decides what to do (e.g. useAuth treats it as logged out).
   if (!res.ok) {
     const body: ApiError = await res.json().catch(() => ({
       error: res.statusText,
