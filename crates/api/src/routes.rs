@@ -24,7 +24,7 @@ use crate::{
 ///
 /// If `config.static_dir` is set, a fallback SPA file server is mounted.
 pub fn router(state: AppState) -> Router {
-    let limiters = RateLimiters::new(state.config.trust_proxy_headers);
+    let limiters = RateLimiters::new(&state.config);
     limiters.spawn_cleanup();
 
     // Rate-limited auth routes: everything that checks or sets a password

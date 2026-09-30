@@ -43,6 +43,7 @@ dependencies = [
  "db",
  "dotenvy",
  "governor",
+ "ipnet",
  "reqwest",
  "serde",
  "serde_json",
@@ -2177,6 +2178,7 @@ name = "shared"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "ipnet",
  "serde",
  "sqlx",
  "thiserror 2.0.18",

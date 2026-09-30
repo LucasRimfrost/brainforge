@@ -187,3 +187,28 @@ async fn security_headers_are_present_on_spa_fallback() {
 
     std::fs::remove_dir_all(&dir).ok();
 }
+
+/// Behind an appending proxy (nginx `$proxy_add_x_forwarded_for`, AWS ALB),
+/// the client controls everything left of the proxy-appended entry. Rotating a
+/// forged leftmost entry must not give the client a fresh rate-limit bucket.
+#[tokio::test]
+#[serial]
+async fn forged_leftmost_forwarded_for_does_not_bypass_login_limit() {
+    let app = common::TestApp::spawn_with(|c| c.trust_proxy_headers = true).await;
+
+    let mut statuses = Vec::new();
+    for i in 0..6 {
+        let resp = app
+            .client
+            .post(app.url("/api/v1/auth/login"))
+            // "<forged by client>, <appended by proxy: the real client IP>"
+            .header("x-forwarded-for", format!("10.9.8.{i}, 198.51.100.20"))
+            .json(&serde_json::json!({ "email": "x@example.com", "password": "wrong" }))
+            .send()
+            .await
+            .unwrap();
+        statuses.push(resp.status().as_u16());
+    }
+
+    assert_eq!(statuses.last(), Some(&429), "{statuses:?}");
+}

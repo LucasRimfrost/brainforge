@@ -1,4 +1,5 @@
-use std::{env, fmt, num::ParseIntError, str::ParseBoolError};
+use ipnet::IpNet;
+use std::{env, fmt, net::IpAddr, num::ParseIntError, str::ParseBoolError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -17,6 +18,9 @@ pub enum ConfigError {
         name: &'static str,
         source: ParseBoolError,
     },
+
+    #[error("invalid IP address or CIDR in {name}: {value:?}")]
+    InvalidCidr { name: &'static str, value: String },
 }
 
 /// Application configuration loaded from environment variables.
@@ -29,7 +33,9 @@ pub enum ConfigError {
 /// `TRUST_PROXY_HEADERS` (defaults to `false`; see [`Config::trust_proxy_headers`]),
 /// `DB_MAX_CONNECTIONS` (default 10), `DB_MIN_CONNECTIONS` (default 2),
 /// `DB_STATEMENT_TIMEOUT_MS` (default 5000; `0` disables),
-/// `REQUEST_TIMEOUT_SECS` (default 10).
+/// `REQUEST_TIMEOUT_SECS` (default 10),
+/// `TRUSTED_PROXY_HOPS` (default 1) and `TRUSTED_PROXY_CIDRS` (default empty),
+/// which only apply when `TRUST_PROXY_HEADERS=true`.
 #[derive(Clone)]
 pub struct Config {
     pub database_url: String,
@@ -52,6 +58,13 @@ pub struct Config {
     pub db_statement_timeout_ms: u64,
     /// Maximum time to handle a request before responding 503.
     pub request_timeout_secs: u64,
+    /// With `trust_proxy_headers`: how many trusted proxies append to
+    /// `X-Forwarded-For`. The client IP is taken this many entries from the
+    /// right; entries further left are client-supplied and ignored.
+    pub trusted_proxy_hops: usize,
+    /// With `trust_proxy_headers`: if non-empty, proxy headers are only read
+    /// when the socket address is in one of these networks.
+    pub trusted_proxy_cidrs: Vec<IpNet>,
 }
 
 impl fmt::Debug for Config {
@@ -68,6 +81,8 @@ impl fmt::Debug for Config {
             .field("db_min_connections", &self.db_min_connections)
             .field("db_statement_timeout_ms", &self.db_statement_timeout_ms)
             .field("request_timeout_secs", &self.request_timeout_secs)
+            .field("trusted_proxy_hops", &self.trusted_proxy_hops)
+            .field("trusted_proxy_cidrs", &self.trusted_proxy_cidrs)
             .finish()
     }
 }
@@ -105,8 +120,29 @@ impl Config {
             db_min_connections: parse_or("DB_MIN_CONNECTIONS", 2)?,
             db_statement_timeout_ms: parse_or("DB_STATEMENT_TIMEOUT_MS", 5000)?,
             request_timeout_secs: parse_or("REQUEST_TIMEOUT_SECS", 10)?,
+            trusted_proxy_hops: parse_or("TRUSTED_PROXY_HOPS", 1)?,
+            trusted_proxy_cidrs: parse_cidrs("TRUSTED_PROXY_CIDRS")?,
         })
     }
+}
+
+/// Parses an optional comma-separated list of CIDRs or bare IP addresses.
+fn parse_cidrs(name: &'static str) -> Result<Vec<IpNet>, ConfigError> {
+    let Ok(raw) = env::var(name) else {
+        return Ok(Vec::new());
+    };
+    raw.split(',')
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.parse::<IpNet>()
+                .or_else(|_| v.parse::<IpAddr>().map(IpNet::from))
+                .map_err(|_| ConfigError::InvalidCidr {
+                    name,
+                    value: v.to_string(),
+                })
+        })
+        .collect()
 }
 
 /// Parses an optional integer environment variable, falling back to `default`
