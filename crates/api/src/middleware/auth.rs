@@ -35,7 +35,7 @@ impl FromRequestParts<AppState> for AuthUser {
             AppError::Unauthorized
         })?;
 
-        let token_hash = auth::token::hash_refresh_token(cookie.value());
+        let token_hash = auth::token::hash_token(cookie.value());
 
         let (session_id, user_id) = db::queries::find_active_session(&state.pool, &token_hash)
             .await?

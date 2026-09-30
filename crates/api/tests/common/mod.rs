@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use api::{AppState, routes};
-use auth::jwt::JwtKeys;
 use db::connection::create_pool;
 use shared::config::Config;
 use sqlx::PgPool;
@@ -38,10 +37,6 @@ impl TestApp {
         let state = AppState {
             pool: pool.clone(),
             config: Arc::clone(&config),
-            jwt: Arc::new(JwtKeys::new(
-                config.jwt_secret.as_bytes(),
-                config.jwt_access_token_expiry_minutes,
-            )),
         };
 
         let router = routes::router(state);
@@ -244,10 +239,10 @@ async fn cleanup_db(pool: &PgPool) {
         .execute(pool)
         .await
         .expect("Failed to clean trivia_stats");
-    sqlx::query("DELETE FROM refresh_tokens")
+    sqlx::query("DELETE FROM sessions")
         .execute(pool)
         .await
-        .expect("Failed to clean refresh_tokens");
+        .expect("Failed to clean sessions");
     sqlx::query("DELETE FROM password_reset_tokens")
         .execute(pool)
         .await

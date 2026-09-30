@@ -9,7 +9,7 @@ A daily programming challenge platform where users solve trivia questions and pr
 - **Streak tracking** -- current and longest streaks calculated per game
 - **Leaderboard** -- ranked by streak and total solves
 - **Challenge archive** -- browse and attempt past challenges
-- **Auth** -- registration, login, JWT access tokens with refresh token rotation, password reset flow
+- **Auth** -- registration, login, opaque server-side sessions (HttpOnly cookie, instant revocation, log out of all devices), password reset flow
 
 ## Tech stack
 
@@ -48,7 +48,7 @@ docker compose up -d
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your database credentials and JWT secret
+# Edit .env with your database credentials
 
 # Run migrations
 sqlx migrate run
@@ -87,7 +87,7 @@ The final image is built from `scratch` -- it contains only the static binary, f
 ```
 crates/
   api/       HTTP server, handlers, middleware, routes
-  auth/      JWT, Argon2 password hashing, refresh tokens
+  auth/      Argon2 password hashing, opaque session/reset tokens
   db/        Connection pool, models, query functions
   shared/    AppError, Config
 frontend/    React SPA

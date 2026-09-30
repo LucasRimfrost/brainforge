@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use auth::jwt::JwtKeys;
 use shared::config::Config;
 use sqlx::PgPool;
 
@@ -15,5 +14,4 @@ pub mod routes;
 pub struct AppState {
     pub pool: PgPool,
     pub config: Arc<Config>,
-    pub jwt: Arc<JwtKeys>,
 }

@@ -221,8 +221,8 @@ pub async fn forgot_password(
 
     if let Some(user) = user {
         // Generate reset token
-        let raw_token = auth::token::generate_refresh_token();
-        let token_hash = auth::token::hash_refresh_token(&raw_token);
+        let raw_token = auth::token::generate_token();
+        let token_hash = auth::token::hash_token(&raw_token);
         let expires_at = chrono::Utc::now() + chrono::Duration::minutes(30);
 
         db::queries::create_password_reset_token(&state.pool, user.id, &token_hash, expires_at)
@@ -260,7 +260,7 @@ pub async fn reset_password(
 ) -> AppResult<impl IntoResponse> {
     payload.validate()?;
 
-    let token_hash = auth::token::hash_refresh_token(&payload.token);
+    let token_hash = auth::token::hash_token(&payload.token);
 
     // Find the token
     let stored = db::queries::find_password_reset_token_by_hash(&state.pool, &token_hash)
@@ -296,7 +296,7 @@ pub async fn reset_password(
             AppError::InternalError
         })??;
 
-    // Atomically: update password + mark token used + revoke all refresh tokens.
+    // Atomically: update password + mark token used + delete all sessions.
     // Wrapped in a single transaction to prevent partial state on crash.
     db::queries::reset_password_atomic(&state.pool, stored.user_id, stored.id, &hashed).await?;
 
@@ -363,7 +363,7 @@ pub async fn me(
 /// Deletes the current session (if any) and clears the session cookie.
 pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> AppResult<impl IntoResponse> {
     if let Some(session_cookie) = jar.get(SESSION_COOKIE) {
-        let token_hash = auth::token::hash_refresh_token(session_cookie.value());
+        let token_hash = auth::token::hash_token(session_cookie.value());
         delete_session_by_hash(&state.pool, &token_hash).await?;
     }
 
@@ -524,16 +524,15 @@ async fn issue_session(
     state: &AppState,
     user_id: uuid::Uuid,
 ) -> AppResult<axum_extra::extract::cookie::Cookie<'static>> {
-    let raw_token = auth::token::generate_refresh_token();
-    let token_hash = auth::token::hash_refresh_token(&raw_token);
-    let expires_at =
-        chrono::Utc::now() + chrono::Duration::days(state.config.refresh_token_expiry_days);
+    let raw_token = auth::token::generate_token();
+    let token_hash = auth::token::hash_token(&raw_token);
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(state.config.session_expiry_days);
 
     create_session(&state.pool, user_id, &token_hash, expires_at).await?;
 
     Ok(build_session_cookie(
         raw_token,
-        state.config.refresh_token_expiry_days,
+        state.config.session_expiry_days,
     ))
 }
 
