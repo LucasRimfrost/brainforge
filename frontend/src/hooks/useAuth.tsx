@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import * as authApi from "@/api/auth";
-import { ApiRequestError } from "@/api/client";
 import type {
   LoginRequest,
   RegisterRequest,
@@ -34,24 +33,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading: true,
   });
 
+  // Re-fetch the current user. Any error (a 401 means no valid session)
+  // leaves the user logged out.
   const refresh = useCallback(async () => {
     try {
       const user = await authApi.getMe();
       setState({ user, loading: false });
-    } catch (err) {
-      if (err instanceof ApiRequestError && err.status === 401) {
-        // Access token missing or expired — try refreshing once
-        try {
-          await authApi.refresh();
-          const user = await authApi.getMe();
-          setState({ user, loading: false });
-        } catch {
-          // Refresh also failed — user is not logged in
-          setState({ user: null, loading: false });
-        }
-      } else {
-        setState({ user: null, loading: false });
-      }
+    } catch {
+      setState({ user: null, loading: false });
     }
   }, []);
 

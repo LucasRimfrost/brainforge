@@ -32,8 +32,8 @@ export function logout(): Promise<void> {
   return api<void>(`${BASE}/logout`, { method: "POST" });
 }
 
-export function refresh(): Promise<void> {
-  return api<void>(`${BASE}/refresh`, { method: "POST" });
+export function logoutAll(): Promise<void> {
+  return api<void>(`${BASE}/logout-all`, { method: "POST" });
 }
 
 export function forgotPassword(data: ForgotPasswordRequest): Promise<MessageResponse> {

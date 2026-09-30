@@ -7,12 +7,14 @@
 
 mod code_output;
 mod games;
+mod session;
 mod token;
 mod trivia;
 mod user;
 
 pub use code_output::*;
 pub use games::*;
+pub use session::*;
 pub use token::*;
 pub use trivia::*;
 pub use user::*;

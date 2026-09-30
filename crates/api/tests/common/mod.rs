@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use api::{AppState, routes};
-use auth::jwt::JwtKeys;
 use db::connection::create_pool;
 use shared::config::Config;
 use sqlx::PgPool;
@@ -38,10 +37,6 @@ impl TestApp {
         let state = AppState {
             pool: pool.clone(),
             config: Arc::clone(&config),
-            jwt: Arc::new(JwtKeys::new(
-                config.jwt_secret.as_bytes(),
-                config.jwt_access_token_expiry_minutes,
-            )),
         };
 
         let router = routes::router(state);
@@ -60,17 +55,7 @@ impl TestApp {
             .unwrap();
         });
 
-        let mut default_headers = reqwest::header::HeaderMap::new();
-        default_headers.insert(
-            "x-requested-with",
-            reqwest::header::HeaderValue::from_static("XMLHttpRequest"),
-        );
-
-        let client = reqwest::Client::builder()
-            .cookie_store(true)
-            .default_headers(default_headers)
-            .build()
-            .unwrap();
+        let client = browser_client();
 
         Self {
             addr,
@@ -225,6 +210,37 @@ impl TestApp {
     }
 }
 
+/// Build a `reqwest::Client` that behaves like the frontend in a browser: it
+/// keeps a cookie jar and sends the `X-Requested-With` CSRF header.
+///
+/// Use this to simulate a second device logged in to the same account.
+pub fn browser_client() -> reqwest::Client {
+    let mut default_headers = reqwest::header::HeaderMap::new();
+    default_headers.insert(
+        "x-requested-with",
+        reqwest::header::HeaderValue::from_static("XMLHttpRequest"),
+    );
+
+    reqwest::Client::builder()
+        .cookie_store(true)
+        .default_headers(default_headers)
+        .build()
+        .unwrap()
+}
+
+/// Extract the `session=<token>` pair from a response's `Set-Cookie` header,
+/// ready to be replayed in a `Cookie` header.
+pub fn session_cookie(resp: &reqwest::Response) -> String {
+    resp.headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|v| v.starts_with("session="))
+        .and_then(|v| v.split(';').next())
+        .expect("response did not set a session cookie")
+        .to_string()
+}
+
 /// Delete all data from every table, respecting foreign key order.
 /// Runs before each test so every test starts with a clean slate.
 async fn cleanup_db(pool: &PgPool) {
@@ -244,10 +260,10 @@ async fn cleanup_db(pool: &PgPool) {
         .execute(pool)
         .await
         .expect("Failed to clean trivia_stats");
-    sqlx::query("DELETE FROM refresh_tokens")
+    sqlx::query("DELETE FROM sessions")
         .execute(pool)
         .await
-        .expect("Failed to clean refresh_tokens");
+        .expect("Failed to clean sessions");
     sqlx::query("DELETE FROM password_reset_tokens")
         .execute(pool)
         .await
